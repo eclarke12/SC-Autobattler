@@ -116,8 +116,8 @@ export function Summary({ result, a, b, shareLink, onEdit }: {
           ))}
         </svg>
         <div className="chart-legend">
-          <span style={{ color: 'var(--side-a)' }}>■ Side A</span>
-          <span style={{ color: 'var(--side-b)' }}>■ Side B</span>
+          <span style={{ color: 'var(--side-a)' }}>■ Ship A</span>
+          <span style={{ color: 'var(--side-b)' }}>■ Ship B</span>
           <span>solid: shield · dashed: armor · dotted: hull</span>
         </div>
       </div>

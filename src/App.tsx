@@ -107,7 +107,7 @@ export function App() {
           return (
             <section key={side} className={`setup-col side-${side}`}>
               <h2 className={side === 'a' ? 'side-label a' : 'side-label b'}>
-                {side === 'a' ? 'Side A' : 'Side B'}
+                {side === 'a' ? 'Ship A' : 'Ship B'}
                 {s.ship && <span className="side-ship-name"> {s.ship.name}</span>}
               </h2>
               <ShipPicker
