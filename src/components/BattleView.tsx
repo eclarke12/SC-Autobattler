@@ -41,14 +41,22 @@ export function BattleView({ a, b, seed, shareLink, onEdit }: {
   const sideView = (side: 'a' | 'b', cfg: ShipConfig) => {
     const st = stateFor(side);
     const d = derivedStats(cfg);
-    const shieldPct = st ? (st.shieldAfter / cfg.ship.shield.hp) * 100 : 100;
-    const armorPct = st ? (st.armorAfter / Math.max(1, cfg.ship.armor)) * 100 : 100;
-    const hullPct = st ? (Math.max(0, st.hullAfter) / cfg.ship.health) * 100 : 100;
+    const shieldCur = st ? st.shieldAfter : cfg.ship.shield.hp;
+    const armorCur = st ? st.armorAfter : cfg.ship.armor;
+    const hullCur = st ? Math.max(0, st.hullAfter) : cfg.ship.health;
+    const shieldPct = Math.min(100, (shieldCur / Math.max(1, cfg.ship.shield.hp)) * 100);
+    const armorPct = Math.min(100, (armorCur / Math.max(1, cfg.ship.armor)) * 100);
+    const hullPct = Math.min(100, (hullCur / Math.max(1, cfg.ship.health)) * 100);
     const taken = st ? damageTaken(st) : 0;
     const shieldsDown = st ? !st.shieldActive : true;
     const extraSegs = Math.max(0, cfg.powerToShields - cfg.ship.shieldPool);
+    const shieldBreak = !!st && st.shieldBefore > 0 && st.shieldAfter <= 0;
+    const destroyed = !!st && st.hullBefore > 0 && st.hullAfter <= 0;
+    const shieldTip = `Shield pool ${fmtInt(shieldCur)} / ${fmtInt(cfg.ship.shield.hp)} · ${cfg.ship.shield.faceType} face · regen ${fmtInt(d.shieldRegen)}/s${extraSegs > 0 ? ` (+${extraSegs} bonus seg${extraSegs === 1 ? '' : 's'})` : ''}`;
+    const armorTip = `Armor pool ${fmtInt(armorCur)} / ${fmtInt(cfg.ship.armor)} — absorbs after shields drop`;
+    const hullTip = `Hull integrity ${fmtInt(hullCur)} / ${fmtInt(cfg.ship.health)} — destruction at 0`;
     return (
-      <div className={`combatant side-${side}`}>
+      <div className={`combatant side-${side}${destroyed ? ' destroyed' : ''}`}>
         <div className="combatant-head">
           {cfg.ship.image ? <img className="combatant-img" src={cfg.ship.image} alt={cfg.ship.name} /> : <div className="combatant-img placeholder">{cfg.ship.sizeClass}</div>}
           <div>
@@ -62,24 +70,26 @@ export function BattleView({ a, b, seed, shareLink, onEdit }: {
             ? (cfg.ship.armor > 0 && (st ? st.armorAfter > 0 : true) ? 'Shields down — armor exposed' : 'Armor gone — hull exposed')
             : `Shields up (${cfg.ship.shield.faceType})`}
         </div>
-        <div className="bar-row">
+        <div className="bar-row" title={shieldTip}>
           <div className="bar-label">🛡</div>
           <div className="bar shield"><div style={{ width: `${shieldPct}%` }} /></div>
           <div className="bar-num">
-            {st ? fmtInt(st.shieldAfter) : fmtInt(cfg.ship.shield.hp)}
+            {fmtInt(shieldCur)}
             <span className="regen-indicator" title={`regen/s, +${extraSegs} bonus seg(s)`}>▲{fmtInt(d.shieldRegen)}/s{extraSegs > 0 ? ` +${extraSegs}` : ''}</span>
           </div>
         </div>
-        <div className="bar-row">
+        <div className="bar-row" title={armorTip}>
           <div className="bar-label">🔩</div>
           <div className="bar armor"><div style={{ width: `${armorPct}%` }} /></div>
-          <div className="bar-num">{st ? fmtInt(st.armorAfter) : fmtInt(cfg.ship.armor)}</div>
+          <div className="bar-num">{fmtInt(armorCur)}</div>
         </div>
-        <div className="bar-row">
+        <div className="bar-row" title={hullTip}>
           <div className="bar-label">❤</div>
           <div className="bar hull"><div style={{ width: `${hullPct}%` }} /></div>
-          <div className="bar-num">{st ? fmtInt(Math.max(0, st.hullAfter)) : fmtInt(cfg.ship.health)}</div>
+          <div className="bar-num">{fmtInt(hullCur)}</div>
         </div>
+        {shieldBreak && <div className="shatter-fx" key={`shatter-${side}-${shown}`} />}
+        {destroyed && <div className="explosion-fx" key={`boom-${side}-${shown}`} />}
       </div>
     );
   };
@@ -99,9 +109,24 @@ export function BattleView({ a, b, seed, shareLink, onEdit }: {
 
       <div className="round-counter">Round {Math.min(shown, total)} / {total}</div>
 
-      <div className="battle-grid">
-        {sideView('a', a)}
-        {sideView('b', b)}
+      <div className="battle-stage">
+        <div className="battle-grid">
+          {sideView('a', a)}
+          {sideView('b', b)}
+        </div>
+        {shown > 0 && shown < total && speed !== 'instant' && (
+          <div className="projectile-layer" key={`proj-${shown}`}>
+            {(['ab', 'ba'] as const).flatMap((sd) =>
+              [0, 1, 2].map((i) => (
+                <span
+                  key={`${sd}-${i}`}
+                  className={`projectile ${sd}`}
+                  style={{ top: `${40 + i * 10}%`, animationDuration: `${SPEED_MS[speed]}ms`, animationDelay: `${i * 90}ms` }}
+                />
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       {finished ? (

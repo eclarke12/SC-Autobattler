@@ -2,6 +2,7 @@ import { fmtInt } from '../data';
 import { derivedStats, powerNotes, shieldFactorFor } from '../engine';
 import type { ShipConfig, ShipData } from '../engine/types';
 import type { SideKnobs } from '../url';
+import { PowerBlocks } from './PowerBlocks';
 
 export function LoadoutPanel({ config, opponent, onChange }: {
   config: ShipConfig;
@@ -30,20 +31,20 @@ export function LoadoutPanel({ config, opponent, onChange }: {
           />
         </label>
       )}
-      <label className="knob">
-        <span>Power to weapons <b>{config.powerToWeapons}/{ship.powerSegments}</b> segs (demand {derived.powerDemand})</span>
-        <input
-          type="range" min={0} max={maxW} value={Math.min(config.powerToWeapons, maxW)}
-          onChange={(e) => set({ w: Number(e.target.value) })}
-        />
-      </label>
-      <label className="knob">
-        <span>Power to shields <b>{config.powerToShields}</b> segs (pool {ship.shieldPool})</span>
-        <input
-          type="range" min={0} max={maxS} value={Math.min(config.powerToShields, maxS)}
-          onChange={(e) => set({ s: Number(e.target.value) })}
-        />
-      </label>
+      <PowerBlocks
+        kind="weapons"
+        label={<>Power to weapons <b>{config.powerToWeapons}/{ship.powerSegments}</b> segs (demand {derived.powerDemand})</>}
+        value={config.powerToWeapons}
+        max={maxW}
+        onChange={(v) => set({ w: v })}
+      />
+      <PowerBlocks
+        kind="shields"
+        label={<>Power to shields <b>{config.powerToShields}</b> segs (pool {ship.shieldPool})</>}
+        value={config.powerToShields}
+        max={maxS}
+        onChange={(v) => set({ s: v })}
+      />
 
       <div className="readouts">
         <div><span>Weapon DPS</span><b>{fmtInt(derived.weaponDps)}</b></div>

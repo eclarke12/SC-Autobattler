@@ -19,11 +19,12 @@ function defaultKnobs(ship: ShipData): SideKnobs {
 
 function toConfig(side: SideSetup): ShipConfig | null {
   if (!side.ship) return null;
+  const segs = side.ship.powerSegments;
   return {
     ship: side.ship,
     mannedTurrets: Math.min(side.knobs.turrets, side.ship.turretCount),
-    powerToWeapons: side.knobs.w,
-    powerToShields: side.knobs.s,
+    powerToWeapons: Math.max(0, Math.min(side.knobs.w, segs)),
+    powerToShields: Math.max(0, Math.min(side.knobs.s, segs)),
   };
 }
 
