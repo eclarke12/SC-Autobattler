@@ -1,0 +1,191 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { z } from 'zod';
+
+const BASE = 'https://api.star-citizen.wiki/api';
+const OUT_DIR = 'data';
+const OUT_FILE = `${OUT_DIR}/ships.json`;
+
+const DAMAGE_TYPES = ['physical', 'energy', 'distortion', 'thermal', 'biochemical', 'stun'];
+
+const rangeSchema = z.object({ min: z.number(), max: z.number() });
+const damageTypeSchema = z.enum(DAMAGE_TYPES);
+
+const shipSchema = z.object({
+  uuid: z.string().min(1),
+  name: z.string().min(1),
+  displayName: z.string().min(1),
+  manufacturer: z.string().min(1),
+  career: z.string().nullable(),
+  role: z.string().nullable(),
+  sizeClass: z.enum(['snub', 'small', 'medium', 'large', 'capital', 'special', 'unknown']),
+  image: z.string(),
+  health: z.number().positive(),
+  armor: z.number().nonnegative(),
+  shield: z.object({
+    hp: z.number().positive(),
+    regenPerSec: z.number().nonnegative(),
+    faceType: z.string(),
+    reconfigurationCooldown: z.number().nonnegative(),
+    absorption: z.record(damageTypeSchema, rangeSchema),
+    resistance: z.record(damageTypeSchema, rangeSchema),
+  }),
+  weapons: z.array(z.object({
+    name: z.string(),
+    type: z.enum(['fixed', 'turret']),
+    damageType: damageTypeSchema,
+    dps: z.number().nonnegative(),
+    power: z.number().positive(),
+  })).min(1),
+  turretCount: z.number().int().nonnegative(),
+  powerSegments: z.number().int().positive(),
+  weaponPool: z.number().int().positive(),
+  shieldPool: z.number().int().positive(),
+  powerUsedShields: z.number(),
+  crossSection: z.object({ length: z.number(), width: z.number(), height: z.number() }),
+  speed: z.object({ scm: z.number().nullable(), max: z.number().nullable() }),
+  mass: z.number().nonnegative(),
+  crew: z.object({ min: z.number().int().nonnegative(), max: z.number().int().nonnegative() }),
+});
+
+const PHYSICAL_NAME = /cannon|gatling|scatter ?gun|mortar|rail ?gun|shredder|projectile|gun|point ?defense/i;
+const ENERGY_NAME = /repeater|laser|pulse|beam|particle|photon|disrupt/i;
+function damageTypeFor(name) {
+  if (PHYSICAL_NAME.test(name)) return 'physical';
+  if (ENERGY_NAME.test(name)) return 'energy';
+  return 'physical';
+}
+
+function toRanges(obj) {
+  const out = {};
+  for (const t of DAMAGE_TYPES) {
+    const r = obj?.[t];
+    out[t] = { min: num(r?.minimum, 0), max: num(r?.maximum, 0) };
+  }
+  return out;
+}
+
+function num(v, fallback) {
+  return typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+}
+
+const NUMERIC_SIZE = { 1: 'snub', 2: 'small', 3: 'medium', 4: 'large', 5: 'large', 6: 'capital', 10: 'special' };
+function sizeClassFor(ship) {
+  const label = (ship.size?.en_EN ?? '').toLowerCase();
+  if (['snub', 'small', 'medium', 'large', 'capital'].includes(label)) return label;
+  return NUMERIC_SIZE[ship.size_class] ?? 'unknown';
+}
+
+async function getJson(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${url} -> HTTP ${r.status}`);
+  return r.json();
+}
+
+async function fetchAllVehicles() {
+  let url = `${BASE}/vehicles`;
+  const items = [];
+  let pages = 0;
+  while (url && pages < 80) {
+    const json = await getJson(url);
+    items.push(...json.data);
+    url = json.links?.next ?? null;
+    pages++;
+  }
+  return { items, pages };
+}
+
+function normalize(ship) {
+  const fixed = (ship.weaponry?.fixed_weapons?.weapons ?? [])
+    .filter((w) => num(w.dps, 0) > 0)
+    .map((w) => ({
+      name: w.name ?? 'Unknown weapon',
+      type: 'fixed',
+      damageType: damageTypeFor(w.name ?? ''),
+      dps: w.dps,
+      power: 1,
+    }));
+  const manned = (ship.turrets?.manned ?? []).map((t, i) => {
+    const label = t.weapons?.[0]?.name ?? t.class_name ?? t.display_name ?? `Turret ${i + 1}`;
+    return {
+      name: label,
+      type: 'turret',
+      damageType: damageTypeFor(label),
+      dps: num(t.dps_total, 0),
+      power: 1,
+    };
+  });
+  const shield = ship.shield ?? {};
+  return {
+    uuid: ship.uuid,
+    name: ship.name,
+    displayName: ship.name,
+    manufacturer: ship.manufacturer?.name ?? 'Unknown',
+    career: ship.career ?? null,
+    role: ship.role ?? null,
+    sizeClass: sizeClassFor(ship),
+    image: ship.images?.[0]?.thumbnail_url ?? '',
+    health: ship.health,
+    armor: num(ship.armor?.health, 0),
+    shield: {
+      hp: shield.hp,
+      regenPerSec: num(shield.regeneration, 0),
+      faceType: shield.face_type ?? 'Bubble',
+      reconfigurationCooldown: num(shield.reconfiguration_cooldown, 5),
+      absorption: toRanges(shield.absorption),
+      resistance: toRanges(shield.resistance),
+    },
+    weapons: [...fixed, ...manned],
+    turretCount: (ship.turrets?.manned ?? []).length,
+    powerSegments: Math.round(num(ship.power?.generation_segments, 1)),
+    weaponPool: Math.round(num(ship.power_pools?.WeaponGun?.size, 4)),
+    shieldPool: Math.round(num(ship.power_pools?.Shield?.size, 2)),
+    powerUsedShields: num(ship.power?.used_segments_shields, 0),
+    crossSection: {
+      length: num(ship.cross_section?.length, 1),
+      width: num(ship.cross_section?.width, 1),
+      height: num(ship.cross_section?.height, 1),
+    },
+    speed: { scm: num(ship.speed?.scm, null), max: num(ship.speed?.max, null) },
+    mass: num(ship.mass, 0),
+    crew: { min: num(ship.crew?.min, 1), max: num(ship.crew?.max, 1) },
+  };
+}
+
+const { items, pages } = await fetchAllVehicles();
+console.log(`fetched ${items.length} vehicles across ${pages} pages`);
+
+const spaceships = items.filter((s) => s.is_spaceship);
+console.log(`is_spaceship: ${spaceships.length}`);
+
+const ships = [];
+const problems = [];
+let unarmed = 0;
+for (const raw of spaceships) {
+  let ship;
+  try {
+    ship = normalize(raw);
+    if (ship.weapons.length < 1) {
+      unarmed++;
+      continue;
+    }
+    ship = shipSchema.parse(ship);
+    ships.push(ship);
+  } catch (e) {
+    const issue = e.issues?.[0] ? ` at ${e.issues[0].path.join('.')}: ${e.issues[0].message}` : `: ${e.message}`;
+    problems.push(`${raw.name} (${raw.uuid})${issue}`);
+  }
+}
+
+if (problems.length) {
+  console.error(`\nVALIDATION FAILURES (${problems.length}):`);
+  for (const p of problems.slice(0, 30)) console.error('  - ' + p);
+  process.exit(1);
+}
+
+mkdirSync(OUT_DIR, { recursive: true });
+writeFileSync(OUT_FILE, JSON.stringify(ships));
+const withImages = ships.filter((s) => s.image).length;
+const withTurrets = ships.filter((s) => s.turretCount > 0).length;
+const bySize = {};
+for (const s of ships) bySize[s.sizeClass] = (bySize[s.sizeClass] ?? 0) + 1;
+console.log(`wrote ${OUT_FILE}: ${ships.length} ships | unarmed-filtered=${unarmed} | images=${withImages} | manned-turret ships=${withTurrets} | sizes=${JSON.stringify(bySize)}`);
