@@ -1,5 +1,5 @@
-import { MAX_ROUNDS, ROUND_SECONDS, VARIANCE } from './constants';
-import { deflectionFor, derivedStats, gatedLoadout, shieldSplitFor } from './derived';
+import { MAX_ROUNDS, ROUND_SECONDS, TORPEDO_FIRE_EVERY_ROUNDS, VARIANCE } from './constants';
+import { decoyEvadeChance, decoyStockFor, deflectionFor, derivedStats, gatedLoadout, isDeflectedByGate, requiredDecoysFor, shieldSplitFor } from './derived';
 import type { GatedAttack } from './derived';
 import { mulberry32 } from './rng';
 import type {
@@ -28,6 +28,11 @@ interface CombatState {
   shieldDownRounds: number;
   totalDamageDealt: number;
   damageByType: Record<DamageType, number>;
+  missilesLeft: number;
+  missilesFired: number;
+  missilesEvaded: number;
+  missilesHit: number;
+  decoysLeft: number;
 }
 
 function initState(ship: ShipData): CombatState {
@@ -44,6 +49,11 @@ function initState(ship: ShipData): CombatState {
     shieldDownRounds: 0,
     totalDamageDealt: 0,
     damageByType: { physical: 0, energy: 0, distortion: 0, thermal: 0, biochemical: 0, stun: 0 },
+    missilesLeft: ship.missiles?.ammo ?? 0,
+    missilesFired: 0,
+    missilesEvaded: 0,
+    missilesHit: 0,
+    decoysLeft: decoyStockFor(ship),
   };
 }
 
@@ -97,6 +107,65 @@ function applyToStructure(def: CombatState, damage: number, events: string[]): n
 
 function fmt(n: number): string {
   return Math.round(n).toLocaleString('en-US');
+}
+
+/** Missile blast damage mix: full explosive damage as physical, so it routes through
+ *  the existing shield absorption/resistance leak model (shared with the UI). */
+export const PHYSICAL_MIX: Record<DamageType, number> = {
+  physical: 1, energy: 0, distortion: 0, thermal: 0, biochemical: 0, stun: 0,
+};
+
+/** One missile salvo per firing side per cadence, resolved with the defender's decoys.
+ *  Decoy barrage must stack to >= target IR signature to drag the seeker off; a partial
+ *  barrage only partially protects; no countermeasures at all = every missile hits.
+ *  A small pilot-fumble RNG lets missiles slip through sufficient decoys.
+ *  Impacts deal the full blast as physical damage, so the explosion bleeds through
+ *  shields via the existing absorption/resistance leak model. Mutates both states. */
+function missilePhase(att: CombatState, def: CombatState, variance: number, round: number, atkEvents: string[], defEvents: string[], rand: () => number): void {
+  const m = att.ship.missiles;
+  if (!m || m.ammo <= 0 || att.missilesLeft <= 0) return;
+  const interval = m.torpedo ? TORPEDO_FIRE_EVERY_ROUNDS : 1;
+  if ((round - 1) % interval !== 0) return;
+
+  att.missilesLeft--;
+  att.missilesFired++;
+  const kind = m.torpedo ? 'Torpedo' : 'Missile';
+  atkEvents.push(`${kind} fired (${att.missilesLeft} left)`);
+
+  const required = requiredDecoysFor(def.ship, m.torpedo);
+  const stockBefore = def.decoysLeft;
+  const evadeP = decoyEvadeChance(stockBefore, required);
+  const evaded = evadeP > 0 && rand() < evadeP;
+  if (evaded) {
+    const used = Math.min(stockBefore, required);
+    def.decoysLeft = stockBefore - used;
+    att.missilesEvaded++;
+    defEvents.push(stockBefore >= required
+      ? `${kind} evaded: ${required} decoy(s) pulled the seeker (${def.decoysLeft} left)`
+      : `${kind} evaded on partial barrage (${stockBefore}/${required} decoys fired, stock dry)`);
+    return;
+  }
+  if (stockBefore > 0) {
+    def.decoysLeft = 0;
+    defEvents.push(stockBefore >= required
+      ? `${kind} slipped through ${required} decoy(s) (pilot fumble, ${def.decoysLeft} left)`
+      : `${kind} punched through ${stockBefore}/${required} decoys (stock dry)`);
+  } else {
+    defEvents.push(`${kind} impacts: no countermeasures on target`);
+  }
+
+  att.missilesHit++;
+  const gate = deflectionFor(def.ship, 'physical');
+  if (isDeflectedByGate(m.perShot, gate, def.armor)) {
+    defEvents.push(`${kind} detonates harmlessly against armor (gate ${fmt(gate)})`);
+    return;
+  }
+  const dmg = m.perShot * variance;
+  const split = shieldSplitFor(def.ship, PHYSICAL_MIX);
+  const applied = applyHit(def, dmg * split.shield, dmg * split.structure, round, defEvents);
+  att.totalDamageDealt += applied;
+  att.damageByType.physical += applied;
+  defEvents.push(`${kind} impact: ${fmt(dmg)} blast, ${Math.round((1 - split.shield) * 100)}% bleeds past shields`);
 }
 
 export function simulate(a: ShipConfig, b: ShipConfig, seed: number): BattleResult {
@@ -155,6 +224,10 @@ export function simulate(a: ShipConfig, b: ShipConfig, seed: number): BattleResu
     if (stateB.shieldActive) stateB.shield = Math.min(stateB.shieldMax, stateB.shield + statsB.shieldRegen * ROUND_SECONDS);
 
     // Simultaneous fire: both incoming values computed from start-of-round state.
+    // Ordnance salvos resolve against the defender's decoy barrage (seeded RNG).
+    missilePhase(stateA, stateB, va, round, eventsA, eventsB, rand);
+    missilePhase(stateB, stateA, vb, round, eventsB, eventsA, rand);
+
     const dealtByA = incomingA;
     const dealtByB = incomingB;
     stateA.totalDamageDealt += dealtByA;
@@ -223,6 +296,9 @@ export function simulate(a: ShipConfig, b: ShipConfig, seed: number): BattleResu
     shipName: state.ship.displayName,
     totalDamageDealt: state.totalDamageDealt,
     damageByType: state.damageByType,
+    missilesFired: state.missilesFired,
+    missilesEvaded: state.missilesEvaded,
+    missilesHit: state.missilesHit,
     shieldDownRounds: state.shieldDownRounds,
     firstShieldBreakRound: state.shieldBrokenAtRound,
     hullPctAtEnd: Math.max(0, state.hull) / state.hullMax,

@@ -70,6 +70,12 @@ export function Summary({ result, a, b, shareLink, onEdit }: {
         <h3>{side.shipName}</h3>
         <div className="summary-row"><span>Total damage dealt</span><b>{fmtInt(side.totalDamageDealt)}</b></div>
         <div className="summary-row"><span>Damage mix (fixed vs turret)</span><b>{Math.round((1 - turretShare) * 100)}% / {Math.round(turretShare * 100)}%</b></div>
+        {(side.missilesFired > 0 || cfg.ship.missiles.ammo > 0) && (
+          <div className="summary-row" title={`Warload ${cfg.ship.missiles.ammo} × ${cfg.ship.missiles.perShot}${cfg.ship.missiles.torpedo ? ' (torpedo)' : ''}; evaded missiles never deal damage`}>
+            <span>{cfg.ship.missiles.torpedo ? 'Torpedoes' : 'Missiles'} fired / evaded / hit</span>
+            <b>{side.missilesFired} / {side.missilesEvaded} / {side.missilesHit}</b>
+          </div>
+        )}
         <div className="summary-row"><span>Shield down time</span><b>{fmtInt(side.shieldDownRounds * ROUND_SECONDS)}s{side.firstShieldBreakRound !== null ? ` (first break round ${side.firstShieldBreakRound})` : ''}</b></div>
         <div className="summary-row"><span>Hull at end</span><b>{Math.round(side.hullPctAtEnd * 100)}%</b></div>
         <div className="dps-breakdown">

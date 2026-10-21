@@ -41,6 +41,21 @@ export interface ShipData {
   };
   weapons: Weapon[];
   turretCount: number;
+  /** Sensor emissions from the wiki API; IR signature drives decoy evasion math. */
+  emission: { ir: number };
+  /** Ship-launched ordnance from the hardpoint tree + standard-loadout warload. */
+  missiles: {
+    /** Largest MISSILE size fired (from the rack's ammo size, not the hardpoint);
+     *  >= 5 (or a rack named "Torpedo") classifies the warload as torpedoes. */
+    size: number;
+    /** Total warload (1 missile fired per round until dry; torpedoes every 2). */
+    ammo: number;
+    /** Explosion damage per missile (physical; bleeds through shields). */
+    perShot: number;
+    torpedo: boolean;
+  };
+  /** Decoy launchers in the hardpoint tree; 0 = no missile defense. */
+  countermeasures: { decoys: number };
   powerSegments: number;
   weaponPool: number;
   shieldPool: number;
@@ -107,6 +122,9 @@ export interface SideSummary {
   shipName: string;
   totalDamageDealt: number;
   damageByType: Record<DamageType, number>;
+  missilesFired: number;
+  missilesEvaded: number;
+  missilesHit: number;
   shieldDownRounds: number;
   firstShieldBreakRound: number | null;
   hullPctAtEnd: number;

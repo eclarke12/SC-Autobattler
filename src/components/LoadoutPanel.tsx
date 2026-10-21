@@ -1,5 +1,5 @@
 import { fmtInt } from '../data';
-import { derivedStats, gatedLoadout, powerNotes, shieldSplitFor } from '../engine';
+import { DECOY_STRENGTH, MISSILE_FUMBLE, PHYSICAL_MIX, TORPEDO_CM_EFFICIENCY, TORPEDO_FIRE_EVERY_ROUNDS, decoyStockFor, derivedStats, gatedLoadout, powerNotes, requiredDecoysFor, shieldSplitFor } from '../engine';
 import type { ShipConfig, ShipData } from '../engine/types';
 import type { SideKnobs } from '../url';
 import { PowerBlocks } from './PowerBlocks';
@@ -74,7 +74,43 @@ export function LoadoutPanel({ config, opponent, onChange }: {
         {gated && opponent && (
           <div><span>Effective DPS vs foe</span><b>{fmtInt(gated.dps)}</b></div>
         )}
+        {ship.missiles.ammo > 0 && (
+          <div title={ship.missiles.torpedo
+            ? `Torpedoes (S${ship.missiles.size} warheads): 1 fired every ${TORPEDO_FIRE_EVERY_ROUNDS} rounds; each decoy counts ${TORPEDO_CM_EFFICIENCY}x against them`
+            : `Missiles (S${ship.missiles.size}): 1 fired per round from the warload until dry; blast damage bleeds through shields (physical penetration)`}>
+            <span>{ship.missiles.torpedo ? 'Torpedoes' : 'Missiles'}</span>
+            <b>{ship.missiles.ammo} × {fmtInt(ship.missiles.perShot)}</b>
+          </div>
+        )}
+        {ship.countermeasures.decoys > 0 && (
+          <div title={`Decoys auto-fired at incoming missiles; need ceil(your IR ${fmtInt(ship.emission.ir)} / ${fmtInt(DECOY_STRENGTH)}) per missile to evade`}>
+            <span>Decoy stock</span><b>{fmtInt(decoyStockFor(ship))} ({ship.countermeasures.decoys} launcher{ship.countermeasures.decoys > 1 ? 's' : ''})</b>
+          </div>
+        )}
+        {ship.countermeasures.decoys === 0 && (opponent?.missiles.ammo ?? 0) > 0 && (
+          <div title="No decoy launchers: every incoming missile from the foe's warload will hit you">
+            <span>Missile defense</span><b>none</b>
+          </div>
+        )}
       </div>
+
+      {opponent && ship.missiles.ammo > 0 && opponent.countermeasures.decoys > 0 && (
+        <ul className="power-notes">
+          <li title={`Their IR signature ${fmtInt(opponent.emission.ir)}: ${ship.missiles.torpedo ? `each of their decoys counts ${TORPEDO_CM_EFFICIENCY}x against your torpedoes (ceil(IR / ${fmtInt(DECOY_STRENGTH * TORPEDO_CM_EFFICIENCY)}))` : `ceil(IR ${fmtInt(opponent.emission.ir)} / ${fmtInt(DECOY_STRENGTH)} decoy strength)`}`}>
+            Evading {opponent.name}'s {ship.missiles.torpedo ? 'torpedoes' : 'missiles'} needs {requiredDecoysFor(opponent, ship.missiles.torpedo)} of their {fmtInt(decoyStockFor(opponent))} decoys per shot (~{Math.round((1 - MISSILE_FUMBLE) * 100)}% evade, {Math.round(MISSILE_FUMBLE * 100)}% pilot fumble).
+          </li>
+        </ul>
+      )}
+      {opponent && ship.missiles.ammo > 0 && opponent.countermeasures.decoys === 0 && (
+        <ul className="power-notes">
+          <li>{opponent.name} has no decoy launchers — every missile you fire will land (armor gate permitting).</li>
+        </ul>
+      )}
+      {opponent && opponent.missiles.ammo > 0 && ship.countermeasures.decoys === 0 && (
+        <ul className="power-notes">
+          <li>⚠ You have no decoys: {opponent.name}'s {opponent.missiles.ammo} {opponent.missiles.torpedo ? 'torpedoes' : 'missiles'} ({fmtInt(opponent.missiles.perShot)} blast each) will all hit — their {opponent.missiles.torpedo ? 'torpedo' : 'missile'} salvo bleeds ~{Math.round((1 - shieldSplitFor(ship, PHYSICAL_MIX).shield) * 100)}% past your shields.</li>
+        </ul>
+      )}
 
       {gated && opponent && deflectedCount > 0 && (
         <ul className="power-notes">

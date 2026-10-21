@@ -39,6 +39,16 @@ const shipSchema = z.object({
     power: z.number().positive(),
   })).min(1),
   turretCount: z.number().int().nonnegative(),
+  emission: z.object({ ir: z.number().nonnegative() }),
+  missiles: z.object({
+    size: z.number().nonnegative(),
+    ammo: z.number().int().nonnegative(),
+    perShot: z.number().nonnegative(),
+    torpedo: z.boolean(),
+  }),
+  countermeasures: z.object({
+    decoys: z.number().int().nonnegative(),
+  }),
   powerSegments: z.number().int().positive(),
   weaponPool: z.number().int().positive(),
   shieldPool: z.number().int().positive(),
@@ -87,6 +97,69 @@ function sizeClassFor(ship) {
   const label = (ship.size?.en_EN ?? '').toLowerCase();
   if (['snub', 'small', 'medium', 'large', 'capital'].includes(label)) return label;
   return NUMERIC_SIZE[ship.size_class] ?? 'unknown';
+}
+
+// Ordnance & countermeasures come from the hardpoint tree (ship.ports, recursively
+// equipped_item). Missile racks give launcher count and the size of the MISSILES they
+// fire (not the hardpoint size: a 6x hardpoint can carry a 12xS3 rack); torpedoes are
+// missiles of size >= 5, and racks named "Torpedo" always count. WeaponDefensive/
+// CountermeasureLauncher ports are Decoy (flare) vs Noise (chaff).
+// Warload count + per-tube damage come from weaponry.missiles (standard loadout aggregate).
+function collectPorts(ports, out = []) {
+  for (const p of ports || []) {
+    out.push(p);
+    collectPorts(p.ports, out);
+  }
+  return out;
+}
+
+// Size of the missiles a rack fires, from the API naming conventions:
+//  - class_name trailing missile-size token: MRCK_S06_..._AEGS_Sabre_Firebird_S03 → 3
+//    (leading MRCK_S0N is the hardpoint; a trailing token overrides it)
+//  - explicit "12xS3" / "2xS2" / "Quad S5" in the display name
+//  - MSD-abc racks: digits are hardpoint/count/missile-size (MSD-543 = S5 rack, 4×S3)
+//  - otherwise missile size == hardpoint size (rack fills its hardpoint, e.g. S6 torpedoes)
+function missileSizeFor(item) {
+  const cn = item.class_name ?? '';
+  const name = item.name ?? '';
+  const trail = cn.match(/_S(\d{1,2})$/i);
+  if (trail) return Number(trail[1]);
+  const named = name.match(/\d+\s*x\s*S(\d)/i) ?? name.match(/\bQuad\s+S(\d)\b/i) ?? name.match(/\bS(\d)\b/i);
+  if (named) return Number(named[1]);
+  const msd = name.match(/MSD-(\d)(\d)(\d)/i);
+  if (msd) return Number(msd[3]);
+  const prefix = cn.match(/^MRCK_S(\d{1,2})/i);
+  if (prefix) return Number(prefix[1]);
+  return num(item.size, 0);
+}
+
+function ordnanceOf(ship) {
+  let racks = 0;
+  let maxSize = 0;
+  let torpedoNamed = false;
+  let decoys = 0;
+  for (const p of collectPorts(ship.ports)) {
+    const it = p.equipped_item;
+    if (!it) continue;
+    if (it.type === 'MissileLauncher') {
+      racks++;
+      maxSize = Math.max(maxSize, missileSizeFor(it));
+      const hay = `${it.name ?? ''} ${it.class_name ?? ''}`.toLowerCase();
+      if (/torpedo/.test(hay)) torpedoNamed = true;
+    }
+    if (it.type === 'WeaponDefensive') {
+      const hay = `${it.name ?? ''} ${it.class_name ?? ''}`.toLowerCase();
+      if (/decoy|flare/.test(hay)) decoys++;
+    }
+  }
+  const agg = ship.weaponry?.missiles;
+  const ammo = racks > 0 ? (num(agg?.count, 0) || racks * 2) : 0; // dual-rack default when unlisted
+  const dmg = num(agg?.damage?.physical, 0) + num(agg?.damage?.energy, 0);
+  const perShot = ammo > 0 ? Math.round(dmg / ammo) : 0;
+  return {
+    missiles: { size: maxSize, ammo: perShot > 0 ? ammo : 0, perShot, torpedo: torpedoNamed || maxSize >= 5 },
+    countermeasures: { decoys },
+  };
 }
 
 function isDisplayModel(ship) {
@@ -169,6 +242,8 @@ function normalize(ship) {
     },
     weapons: [...fixed, ...manned],
     turretCount: (ship.turrets?.manned ?? []).length,
+    emission: { ir: num(ship.emission?.ir, 0) },
+    ...ordnanceOf(ship),
     powerSegments: Math.round(num(ship.power?.generation_segments, 1)),
     weaponPool: Math.round(num(ship.power_pools?.WeaponGun?.size, 4)),
     shieldPool: Math.round(num(ship.power_pools?.Shield?.size, 2)),

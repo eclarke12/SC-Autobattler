@@ -1,5 +1,9 @@
 import {
+  DECOY_STOCK_BY_SIZE,
+  DECOY_STRENGTH,
+  MISSILE_FUMBLE,
   SHIELD_POWER_BONUS_PER_SEGMENT,
+  TORPEDO_CM_EFFICIENCY,
   TURRET_POWER_SEGMENTS,
   WEAPON_DPS_PER_SEGMENT,
 } from './constants';
@@ -58,6 +62,38 @@ export function deflectionFor(defender: ShipData, type: DamageType): number {
   return defender.armorDeflection?.[type] ?? 0;
 }
 
+/** Shared armor deflection gate: per-shot damage (alpha) below the defender's gate is
+ *  deflected while the defender has armor; alpha 0 (unknown) is never deflected.
+ *  Used by the weapons path (gatedLoadout) and the missile path (missilePhase). */
+export function isDeflectedByGate(alpha: number, gate: number, defenderArmor: number): boolean {
+  return defenderArmor > 0 && alpha > 0 && alpha < gate;
+}
+
+/** Decoys a defender must stack to drag one incoming missile's seeker off its IR
+ *  signature: ceil(target IR / decoy strength). Torpedoes are very susceptible: each
+ *  decoy counts double. Ships with no decoy launchers can never evade (required is
+ *  moot — 0 stock). */
+export function requiredDecoysFor(defender: ShipData, torpedo: boolean): number {
+  const eff = DECOY_STRENGTH * (torpedo ? TORPEDO_CM_EFFICIENCY : 1);
+  return Math.max(1, Math.ceil((defender.emission?.ir ?? 0) / eff));
+}
+
+/** Flare charges carried: launcher count × size-class stock (API has no charge counts). */
+export function decoyStockFor(ship: ShipData): number {
+  return ship.countermeasures?.decoys > 0
+    ? DECOY_STOCK_BY_SIZE[ship.sizeClass] * ship.countermeasures.decoys
+    : 0;
+}
+
+/** P(evade) given remaining decoy stock vs the requirement: sufficient barrage evades
+ *  everything except the pilot-fumble share; a partial barrage scales that down; zero
+ *  stock never evades. */
+export function decoyEvadeChance(decoysLeft: number, required: number): number {
+  if (decoysLeft <= 0 || required <= 0) return 0;
+  const base = 1 - MISSILE_FUMBLE;
+  return decoysLeft >= required ? base : base * (decoysLeft / required);
+}
+
 export interface GatedAttack {
   /** Effective DPS against this defender after the armor deflection gate. */
   dps: number;
@@ -74,7 +110,6 @@ export interface GatedAttack {
  *  depleted the gate no longer applies. Alpha 0 (unknown) is never deflected. */
 export function gatedLoadout(config: ShipConfig, defender: ShipData, defenderArmor: number, dpsScale: number): GatedAttack {
   const { ship, mannedTurrets } = config;
-  const gateActive = defenderArmor > 0;
   const turretShare = ship.turretCount > 0 ? Math.min(mannedTurrets, ship.turretCount) / ship.turretCount : 0;
   const mix: Record<DamageType, number> = {
     physical: 0, energy: 0, distortion: 0, thermal: 0, biochemical: 0, stun: 0,
@@ -86,7 +121,7 @@ export function gatedLoadout(config: ShipConfig, defender: ShipData, defenderArm
     const dps = (w.type === 'fixed' ? w.dps : w.dps * turretShare) * dpsScale;
     if (dps <= 0) continue;
     fired += 1;
-    if (gateActive && w.alpha > 0 && w.alpha < deflectionFor(defender, w.damageType)) {
+    if (isDeflectedByGate(w.alpha, deflectionFor(defender, w.damageType), defenderArmor)) {
       deflectedNames.set(w.name, (deflectedNames.get(w.name) ?? 0) + 1);
       continue;
     }

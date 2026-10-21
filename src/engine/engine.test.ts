@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { derivedStats, simulate } from './index';
+import { MISSILE_FUMBLE, decoyEvadeChance, decoyStockFor, derivedStats, mulberry32, requiredDecoysFor, simulate } from './index';
 import type { ShipConfig, ShipData } from './types';
 import { DAMAGE_TYPES } from './types';
 
@@ -31,6 +31,11 @@ function syn(name: string, opts: {
   deflectPhys?: number;
   deflectEnergy?: number;
   physAbsorb?: number;
+  ir?: number;
+  missileAmmo?: number;
+  missileDmg?: number;
+  torpedo?: boolean;
+  decoyLaunchers?: number;
 }): ShipData {
   const turretCount = opts.turretCount ?? 0;
   const alpha = opts.alpha ?? 1000;
@@ -56,6 +61,14 @@ function syn(name: string, opts: {
     },
     weapons,
     turretCount,
+    emission: { ir: opts.ir ?? 0 },
+    missiles: {
+      size: opts.torpedo ? 5 : 3,
+      ammo: opts.missileAmmo ?? 0,
+      perShot: opts.missileDmg ?? 0,
+      torpedo: opts.torpedo ?? false,
+    },
+    countermeasures: { decoys: opts.decoyLaunchers ?? 0 },
     powerSegments: 20, weaponPool: 20, shieldPool: 4, powerUsedShields: 4,
     crossSection: { length: 1, width: 1, height: 1 },
     speed: { scm: 200, max: 1000 }, mass: 1000, crew: { min: 1, max: 1 },
@@ -66,7 +79,9 @@ describe('golden battles', () => {
   it('Hammerhead vs Gladius: armor gate zeroes the small guns, Hammerhead wins (seed 42)', () => {
     const result = simulate(fullConfig(findShip('Hammerhead')), fullConfig(findShip('Gladius')), 42);
     expect(result.winner).toBe('a');
-    expect(result.summary.sides.b.totalDamageDealt).toBe(0);
+    // Gladius's guns are gated to zero; only its (small) missile warload lands any damage.
+    expect(result.summary.sides.b.totalDamageDealt).toBeLessThan(result.summary.sides.a.totalDamageDealt / 4);
+    expect(result.rounds[0].a.events.some((e) => e.includes('Armor deflects'))).toBe(true);
     expect(result.summary.totalRounds).toBeLessThanOrEqual(80);
   });
 
@@ -201,10 +216,17 @@ describe('armor deflection gate', () => {
     for (const s of ships) {
       for (const t of DAMAGE_TYPES) expect(s.armorDeflection[t]).toBeLessThan(1e6);
       for (const w of s.weapons) expect(w.alpha).toBeGreaterThanOrEqual(0);
+      expect(s.emission).toBeDefined();
+      expect(s.missiles).toBeDefined();
+      expect(s.countermeasures).toBeDefined();
     }
     const hammer = findShip('Hammerhead');
     expect(hammer.armorDeflection.physical).toBeGreaterThan(500);
     expect(hammer.weapons.every((w) => w.alpha < hammer.armorDeflection.physical)).toBe(true);
+    const stalker = findShip('Avenger Stalker');
+    expect(stalker.missiles.ammo).toBe(4);
+    expect(stalker.missiles.perShot).toBeGreaterThan(1000);
+    expect(stalker.countermeasures.decoys).toBeGreaterThan(0);
   });
 });
 
@@ -236,5 +258,104 @@ describe('shield absorption leak', () => {
     expect(result.rounds[0].b.armorAfter).toBe(1000);
     expect(result.rounds[0].b.hullAfter).toBe(9000);
     expect(result.rounds[0].b.shieldAfter).toBeLessThan(20000);
+  });
+});
+
+/** Find seeds whose (skips+1)-th draw lands below / above the evade threshold. For a
+ *  round-1 missile evade roll that is draws 3 (va, vb) + 1, i.e. skips=2. */
+function pickSeeds(skips: number): { evadeSeed: number; fumbleSeed: number } {
+  const p = 1 - MISSILE_FUMBLE;
+  let evadeSeed = -1;
+  let fumbleSeed = -1;
+  for (let s = 1; s < 1000 && (evadeSeed < 0 || fumbleSeed < 0); s++) {
+    const r = mulberry32(s);
+    for (let i = 0; i < skips; i++) r();
+    const roll = r();
+    if (roll < p && evadeSeed < 0) evadeSeed = s;
+    if (roll >= p && fumbleSeed < 0) fumbleSeed = s;
+  }
+  return { evadeSeed, fumbleSeed };
+}
+
+describe('ordnance & countermeasures', () => {
+  it('formula: required decoys = ceil(IR / decoy strength); torpedoes count decoys double', () => {
+    const s = syn('IR5k', { health: 1, armor: 0, shield: 0, regen: 0, fixedDps: 0, ir: 5000 });
+    expect(requiredDecoysFor(s, false)).toBe(5);
+    expect(requiredDecoysFor(s, true)).toBe(3);
+    const zero = syn('IR0', { health: 1, armor: 0, shield: 0, regen: 0, fixedDps: 0 });
+    expect(requiredDecoysFor(zero, false)).toBe(1);
+  });
+
+  it('decoy stock scales with launchers; evade chance math matches the model', () => {
+    const s = syn('CM', { health: 1, armor: 0, shield: 0, regen: 0, fixedDps: 0, decoyLaunchers: 2 });
+    expect(decoyStockFor(s)).toBe(30);
+    expect(decoyStockFor(syn('NoCM', { health: 1, armor: 0, shield: 0, regen: 0, fixedDps: 0 }))).toBe(0);
+    expect(decoyEvadeChance(0, 5)).toBe(0);
+    expect(decoyEvadeChance(10, 5)).toBeCloseTo(1 - MISSILE_FUMBLE);
+    expect(decoyEvadeChance(3, 5)).toBeCloseTo((1 - MISSILE_FUMBLE) * 0.6);
+  });
+
+  it('no countermeasures: every missile hits (blast through shields)', () => {
+    const attacker = syn('Armed', { health: 50000, armor: 0, shield: 0, regen: 0, fixedDps: 0, missileAmmo: 3, missileDmg: 1000 });
+    const defender = syn('Bare', { health: 20000, armor: 0, shield: 10000, regen: 0, fixedDps: 0, ir: 5000, physAbsorb: 1 });
+    const result = simulate(fullConfig(attacker), fullConfig(defender), 3);
+    expect(result.summary.sides.a.missilesFired).toBe(3);
+    expect(result.summary.sides.a.missilesEvaded).toBe(0);
+    expect(result.summary.sides.a.missilesHit).toBe(3);
+    const dealt = result.summary.sides.a.totalDamageDealt;
+    expect(dealt).toBeGreaterThan(2700);
+    expect(dealt).toBeLessThan(3450);
+  });
+
+  it('sufficient decoys pull the seeker (evade seed), stock drains by the requirement', () => {
+    const attacker = syn('Armed', { health: 50000, armor: 0, shield: 0, regen: 0, fixedDps: 0, missileAmmo: 1, missileDmg: 1000 });
+    const defender = syn('Flaring', { health: 20000, armor: 0, shield: 10000, regen: 0, fixedDps: 0, ir: 5000, decoyLaunchers: 1, physAbsorb: 1 });
+    const { evadeSeed } = pickSeeds(2);
+    const result = simulate(fullConfig(attacker), fullConfig(defender), evadeSeed);
+    expect(result.summary.sides.a.missilesFired).toBe(1);
+    expect(result.summary.sides.a.missilesEvaded).toBe(1);
+    expect(result.summary.sides.a.missilesHit).toBe(0);
+    expect(result.summary.sides.a.totalDamageDealt).toBe(0);
+    expect(result.rounds[0].b.events.some((e) => e.includes('evaded: 5 decoy'))).toBe(true);
+  });
+
+  it('pilot fumble: one missile slips through a sufficient barrage on the fumble seed', () => {
+    const attacker = syn('Armed', { health: 50000, armor: 0, shield: 0, regen: 0, fixedDps: 0, missileAmmo: 1, missileDmg: 1000 });
+    const defender = syn('Flaring', { health: 20000, armor: 0, shield: 10000, regen: 0, fixedDps: 0, ir: 5000, decoyLaunchers: 1, physAbsorb: 1 });
+    const { fumbleSeed } = pickSeeds(2);
+    const result = simulate(fullConfig(attacker), fullConfig(defender), fumbleSeed);
+    expect(result.summary.sides.a.missilesEvaded).toBe(0);
+    expect(result.summary.sides.a.missilesHit).toBe(1);
+    expect(result.summary.sides.a.totalDamageDealt).toBeGreaterThan(0);
+    expect(result.rounds[0].b.events.some((e) => e.includes('slipped through'))).toBe(true);
+  });
+
+  it('torpedoes fire every 2 rounds', () => {
+    const attacker = syn('TorpShip', { health: 50000, armor: 0, shield: 0, regen: 0, fixedDps: 0, missileAmmo: 4, missileDmg: 100, torpedo: true });
+    const defender = syn('Big', { health: 90000, armor: 0, shield: 0, regen: 0, fixedDps: 0, ir: 5000 });
+    const result = simulate(fullConfig(attacker), fullConfig(defender), 11);
+    expect(result.summary.sides.a.missilesFired).toBe(4);
+    expect(result.rounds[0].a.events.some((e) => e.includes('Torpedo fired'))).toBe(true);
+    expect(result.rounds[1].a.events.some((e) => e.includes('Torpedo fired'))).toBe(false);
+    expect(result.rounds[2].a.events.some((e) => e.includes('Torpedo fired'))).toBe(true);
+  });
+
+  it('missile blast bleeds through a zero-absorption shield straight onto armor', () => {
+    const attacker = syn('Armed', { health: 50000, armor: 0, shield: 0, regen: 0, fixedDps: 0, missileAmmo: 1, missileDmg: 1000 });
+    const defender = syn('LeakyShield', { health: 20000, armor: 3000, shield: 10000, regen: 0, fixedDps: 0, physAbsorb: 0, ir: 4000 });
+    const result = simulate(fullConfig(attacker), fullConfig(defender), 5);
+    const r1 = result.rounds[0];
+    // seed 5 round-1 va ≈ 1.057 → 1057 blast: zero physical absorption → full bleed onto
+    // armor with the shield untouched (the researched AoE shield bleed-through).
+    expect(r1.b.shieldAfter).toBe(10000);
+    expect(r1.b.armorBefore - r1.b.armorAfter).toBeCloseTo(1057, 0);
+    expect(r1.b.events.some((e) => e.includes('100% bleeds past shields'))).toBe(true);
+  });
+
+  it('real warloads: Stalker fires missiles at Gladius', () => {
+    const result = simulate(fullConfig(findShip('Avenger Stalker')), fullConfig(findShip('Gladius')), 42);
+    expect(result.summary.sides.a.missilesFired).toBeGreaterThan(0);
+    expect(result.summary.sides.a.missilesFired + result.summary.sides.a.missilesEvaded + result.summary.sides.a.missilesHit)
+      .toBeGreaterThanOrEqual(result.summary.sides.a.missilesFired);
   });
 });

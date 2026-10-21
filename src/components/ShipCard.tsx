@@ -1,4 +1,5 @@
 import { fmtInt, shipTotalDps } from '../data';
+import { TORPEDO_FIRE_EVERY_ROUNDS } from '../engine';
 import type { ShipData } from '../engine/types';
 
 export function ShipCard({ ship, selected, onSelect }: {
@@ -28,6 +29,14 @@ export function ShipCard({ ship, selected, onSelect }: {
           <span title="Hull HP">❤ {fmtInt(ship.health)}</span>
           <span title="Fixed weapon DPS">⚔ {fmtInt(shipTotalDps(ship))}</span>
           {ship.turretCount > 0 && <span title="Manned turret DPS per turret">🎯 {fmtInt(turretAvg)}×{ship.turretCount}</span>}
+          {ship.missiles?.ammo > 0 && (
+            <span title={ship.missiles.torpedo
+              ? `Torpedoes (S${ship.missiles.size} warheads): ${ship.missiles.ammo} × ${fmtInt(ship.missiles.perShot)} blast, fired every ${TORPEDO_FIRE_EVERY_ROUNDS} rounds; very susceptible to countermeasures`
+              : `Missile warload (S${ship.missiles.size} missiles): ${ship.missiles.ammo} × ${fmtInt(ship.missiles.perShot)} blast, 1 fired per round; blast bleeds through shields`}>🚀 {ship.missiles.ammo}×{fmtInt(ship.missiles.perShot)}</span>
+          )}
+          {ship.countermeasures?.decoys > 0 && (
+            <span title={`Decoy launchers: auto-fires to pull incoming missiles off your IR signature (IR ${fmtInt(ship.emission?.ir ?? 0)})`}>🎇 {ship.countermeasures.decoys}</span>
+          )}
         </div>
         <div className="ship-weapons">
           {fixed.slice(0, 6).map((w, i) => (
