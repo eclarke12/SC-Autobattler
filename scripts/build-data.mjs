@@ -75,6 +75,21 @@ function sizeClassFor(ship) {
   return NUMERIC_SIZE[ship.size_class] ?? 'unknown';
 }
 
+function isDisplayModel(ship) {
+  return /_display$/i.test(ship.class_name ?? '') || /-display$/i.test(ship.slug ?? '');
+}
+
+function dedupeByName(ships) {
+  const rank = (s) => (num(s.msrp, 0) > 0 ? 0 : 1);
+  const best = new Map();
+  for (const s of ships) {
+    const key = `${s.manufacturer?.name ?? ''}|${s.name}|${s.chassis_id ?? s.class_name ?? ''}`.toLowerCase();
+    const cur = best.get(key);
+    if (!cur || rank(s) < rank(cur)) best.set(key, s);
+  }
+  return [...best.values()];
+}
+
 async function getJson(url) {
   const r = await fetch(url);
   if (!r.ok) throw new Error(`${url} -> HTTP ${r.status}`);
@@ -157,10 +172,16 @@ console.log(`fetched ${items.length} vehicles across ${pages} pages`);
 const spaceships = items.filter((s) => s.is_spaceship);
 console.log(`is_spaceship: ${spaceships.length}`);
 
+const flyable = spaceships.filter((s) => !isDisplayModel(s));
+console.log(`display models excluded: ${spaceships.length - flyable.length}`);
+
+const unique = dedupeByName(flyable);
+console.log(`deduped: ${unique.length} (removed ${flyable.length - unique.length} identical livery/chassis twins)`);
+
 const ships = [];
 const problems = [];
 let unarmed = 0;
-for (const raw of spaceships) {
+for (const raw of unique) {
   let ship;
   try {
     ship = normalize(raw);
