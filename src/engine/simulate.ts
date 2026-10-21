@@ -1,5 +1,6 @@
-import { DEFLECTION, MAX_ROUNDS, ROUND_SECONDS, VARIANCE } from './constants';
-import { derivedStats, shieldFactorFor } from './derived';
+import { MAX_ROUNDS, ROUND_SECONDS, VARIANCE } from './constants';
+import { deflectionFor, derivedStats, gatedLoadout, shieldSplitFor } from './derived';
+import type { GatedAttack } from './derived';
 import { mulberry32 } from './rng';
 import type {
   BattleResult,
@@ -52,24 +53,27 @@ function currentPhase(s: CombatState): Phase {
   return 'hull';
 }
 
-/** Apply raw incoming (post-deflection, post-variance) full-round damage to defender. Mutates state. */
-function applyHit(def: CombatState, attackerFactor: number, rawDamage: number, roundIndex: number, events: string[]): number {
+/** Apply one round of incoming damage (post deflection-gate, post-variance) split into the
+ *  shield-absorbed part and the part phasing through shields straight onto armor/hull.
+ *  Passes the gate: damage hits armor first; armor depletion overflow carries to hull.
+ *  Mutates state. */
+function applyHit(def: CombatState, shieldPart: number, structPart: number, roundIndex: number, events: string[]): number {
   let applied = 0;
-  if (def.shieldActive) {
-    const eff = rawDamage * attackerFactor;
-    def.shield -= eff;
-    applied += eff;
+  if (def.shieldActive && def.shield > 0) {
+    def.shield -= shieldPart;
+    applied += shieldPart;
+    applied += applyToStructure(def, structPart, events);
     if (def.shield <= 0) {
       const overflow = -def.shield;
       def.shield = 0;
       def.shieldActive = false;
       def.downRoundsLeft = Math.max(1, Math.ceil(def.ship.shield.reconfigurationCooldown / ROUND_SECONDS));
       if (def.shieldBrokenAtRound === null) def.shieldBrokenAtRound = roundIndex;
-      events.push(`Shields broken at round ${roundIndex} (factor ${attackerFactor.toFixed(2)}), overflow ${fmt(overflow)} to armor; down for ${def.downRoundsLeft} round(s)`);
+      events.push(`Shields broken at round ${roundIndex} (shield cover ${(shieldPart / Math.max(1e-9, shieldPart + structPart) * 100).toFixed(0)}%), overflow ${fmt(overflow)} to armor; down for ${def.downRoundsLeft} round(s)`);
       applied += applyToStructure(def, overflow, events);
     }
   } else {
-    applied += applyToStructure(def, rawDamage, events);
+    applied += applyToStructure(def, shieldPart + structPart, events);
   }
   return applied;
 }
@@ -101,8 +105,6 @@ export function simulate(a: ShipConfig, b: ShipConfig, seed: number): BattleResu
   const statsB = derivedStats(b);
   const stateA = initState(a.ship);
   const stateB = initState(b.ship);
-  const factorAB = shieldFactorFor(b.ship, statsA.damageMix); // A attacks B
-  const factorBA = shieldFactorFor(a.ship, statsB.damageMix); // B attacks A
 
   const rounds: Round[] = [];
   let winner: 'a' | 'b' | 'draw' | null = null;
@@ -110,8 +112,15 @@ export function simulate(a: ShipConfig, b: ShipConfig, seed: number): BattleResu
   for (let round = 1; round <= MAX_ROUNDS && winner === null; round++) {
     const va = 1 + (rand() * 2 - 1) * VARIANCE;
     const vb = 1 + (rand() * 2 - 1) * VARIANCE;
-    const incomingA = statsA.weaponDps * (1 - DEFLECTION) * va * ROUND_SECONDS;
-    const incomingB = statsB.weaponDps * (1 - DEFLECTION) * vb * ROUND_SECONDS;
+
+    // Deflection gate (hard): weapons with per-shot damage below the defender's armor
+    // deflection for their damage type deal no damage while the defender has armor.
+    const atkA = gatedLoadout(a, stateB.ship, stateB.armor, statsA.dpsScale);
+    const atkB = gatedLoadout(b, stateA.ship, stateA.armor, statsB.dpsScale);
+    const splitAB = shieldSplitFor(b.ship, atkA.mix); // A attacks B
+    const splitBA = shieldSplitFor(a.ship, atkB.mix); // B attacks A
+    const incomingA = atkA.dps * va * ROUND_SECONDS;
+    const incomingB = atkB.dps * vb * ROUND_SECONDS;
 
     const snapshotA = {
       shieldBefore: stateA.shield,
@@ -131,6 +140,16 @@ export function simulate(a: ShipConfig, b: ShipConfig, seed: number): BattleResu
     const eventsA: string[] = [];
     const eventsB: string[] = [];
 
+    const deflectNote = (atk: GatedAttack, gateHost: ShipData): string | null => {
+      if (atk.deflected.length === 0) return null;
+      const list = atk.deflected.map((d) => (d.count > 1 ? `${d.name}×${d.count}` : d.name)).join(', ');
+      return `Armor deflects ${list} (gate ${fmt(deflectionFor(gateHost, 'physical'))}P / ${fmt(deflectionFor(gateHost, 'energy'))}E)`;
+    };
+    const noteB = deflectNote(atkA, b.ship); // A's shots deflected by B's armor
+    if (noteB) eventsB.push(noteB);
+    const noteA = deflectNote(atkB, a.ship); // B's shots deflected by A's armor
+    if (noteA) eventsA.push(noteA);
+
     // Shield regen first (only if powered & active).
     if (stateA.shieldActive) stateA.shield = Math.min(stateA.shieldMax, stateA.shield + statsA.shieldRegen * ROUND_SECONDS);
     if (stateB.shieldActive) stateB.shield = Math.min(stateB.shieldMax, stateB.shield + statsB.shieldRegen * ROUND_SECONDS);
@@ -141,12 +160,12 @@ export function simulate(a: ShipConfig, b: ShipConfig, seed: number): BattleResu
     stateA.totalDamageDealt += dealtByA;
     stateB.totalDamageDealt += dealtByB;
     for (const t of DAMAGE_TYPES) {
-      stateA.damageByType[t] += dealtByA * statsA.damageMix[t];
-      stateB.damageByType[t] += dealtByB * statsB.damageMix[t];
+      stateA.damageByType[t] += dealtByA * atkA.mix[t];
+      stateB.damageByType[t] += dealtByB * atkB.mix[t];
     }
 
-    applyHit(stateB, factorAB, dealtByA, round, eventsB);
-    applyHit(stateA, factorBA, dealtByB, round, eventsA);
+    applyHit(stateB, dealtByA * splitAB.shield, dealtByA * splitAB.structure, round, eventsB);
+    applyHit(stateA, dealtByB * splitBA.shield, dealtByB * splitBA.structure, round, eventsA);
 
     // End-of-round shield bookkeeping.
     if (!stateA.shieldActive) {

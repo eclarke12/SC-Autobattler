@@ -24,7 +24,7 @@ export function ShipCard({ ship, selected, onSelect }: {
         <div className="ship-meta">{ship.manufacturer} · {ship.sizeClass}{ship.career ? ` · ${ship.career}` : ''}</div>
         <div className="ship-stats">
           <span title="Shield pool">🛡 {fmtInt(ship.shield.hp)}</span>
-          <span title="Armor pool">🔩 {fmtInt(ship.armor)}</span>
+          <span title={`Armor pool · deflect gate ${fmtInt(ship.armorDeflection.physical)} ballistic / ${fmtInt(ship.armorDeflection.energy)} energy — attacks below the gate deal no damage while armor holds`}>🔩 {fmtInt(ship.armor)} ({fmtInt(ship.armorDeflection.physical)}/{fmtInt(ship.armorDeflection.energy)})</span>
           <span title="Hull HP">❤ {fmtInt(ship.health)}</span>
           <span title="Fixed weapon DPS">⚔ {fmtInt(shipTotalDps(ship))}</span>
           {ship.turretCount > 0 && <span title="Manned turret DPS per turret">🎯 {fmtInt(turretAvg)}×{ship.turretCount}</span>}

@@ -1,9 +1,13 @@
 // All gameplay tunables live here (plan: "declare in src/engine/constants.ts with comments").
 
-/** Fraction of incoming DPS deflected before it reaches shields. Per-ship deflection is not
- *  exposed by the API (armor.deflection holds numeric penetration thresholds, not %), so this
- *  is a global tunable. */
-export const DEFLECTION = 0.1;
+/** Armor deflection is modeled as a hard gate per weapon (api.star-citizen.wiki
+ *  `armor.deflection.{physical,energy}` vs. weapon alpha), not a flat percentage.
+ *  Weapons whose per-shot damage (alpha) is below the defender's deflection for that
+ *  damage type deal no damage while the defender's armor pool is above zero.
+ *  Alpha values of 0 (unknown per-shot damage) are never deflected.
+ *  `armor.penetration_resistance` is 1.0 fleet-wide in the API, so no penetration
+ *  multiplier is applied; shots that pass the gate deal full damage to armor, with
+ *  overflow to hull once armor is depleted. */
 
 /** Per-round damage roll variance: ±15%, seeded. */
 export const VARIANCE = 0.15;

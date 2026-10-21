@@ -11,6 +11,9 @@ export interface Weapon {
   type: 'fixed' | 'turret';
   damageType: DamageType;
   dps: number;
+  /** Per-shot (burst) damage; compared against defender armor deflection as a hard gate.
+   *  0 = unknown per-shot damage → never deflected. */
+  alpha: number;
   power: number;
 }
 
@@ -25,6 +28,9 @@ export interface ShipData {
   image: string;
   health: number;
   armor: number;
+  /** Per-shot damage thresholds: attacks from weapons with alpha below the defender's
+   *  deflection for that damage type deal no damage while the defender has armor. */
+  armorDeflection: Record<DamageType, number>;
   shield: {
     hp: number;
     regenPerSec: number;

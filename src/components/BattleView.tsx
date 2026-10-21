@@ -52,8 +52,11 @@ export function BattleView({ a, b, seed, shareLink, onEdit }: {
     const extraSegs = Math.max(0, cfg.powerToShields - cfg.ship.shieldPool);
     const shieldBreak = !!st && st.shieldBefore > 0 && st.shieldAfter <= 0;
     const destroyed = !!st && st.hullBefore > 0 && st.hullAfter <= 0;
-    const shieldTip = `Shield pool ${fmtInt(shieldCur)} / ${fmtInt(cfg.ship.shield.hp)} · ${cfg.ship.shield.faceType} face · regen ${fmtInt(d.shieldRegen)}/s${extraSegs > 0 ? ` (+${extraSegs} bonus seg${extraSegs === 1 ? '' : 's'})` : ''}`;
-    const armorTip = `Armor pool ${fmtInt(armorCur)} / ${fmtInt(cfg.ship.armor)} — absorbs after shields drop`;
+    const shieldTip = `Shield pool ${fmtInt(shieldCur)} / ${fmtInt(cfg.ship.shield.hp)} · ${cfg.ship.shield.faceType} face · regen ${fmtInt(d.shieldRegen)}/s${extraSegs > 0 ? ` (+${extraSegs} bonus seg${extraSegs === 1 ? '' : 's'})` : ''} · damage this shield absorbs poorly (e.g. ballistic) phases through onto armor`;
+    const gateP = cfg.ship.armorDeflection.physical;
+    const gateE = cfg.ship.armorDeflection.energy;
+    const gateNote = cfg.ship.armor > 0 ? ` · deflect gate ${fmtInt(gateP)} ballistic / ${fmtInt(gateE)} energy` : '';
+    const armorTip = `Armor pool ${fmtInt(armorCur)} / ${fmtInt(cfg.ship.armor)} — absorbs after shields drop${gateNote}; shots below the gate deal no damage while armor holds`;
     const hullTip = `Hull integrity ${fmtInt(hullCur)} / ${fmtInt(cfg.ship.health)} — destruction at 0`;
     return (
       <div className={`combatant side-${side}${destroyed ? ' destroyed' : ''}`}>
@@ -67,7 +70,7 @@ export function BattleView({ a, b, seed, shareLink, onEdit }: {
         </div>
         <div className={`phase-banner${shieldsDown ? ' down' : ''}`}>
           {shieldsDown
-            ? (cfg.ship.armor > 0 && (st ? st.armorAfter > 0 : true) ? 'Shields down — armor exposed' : 'Armor gone — hull exposed')
+            ? (cfg.ship.armor > 0 && (st ? st.armorAfter > 0 : true) ? `Shields down — armor exposed (gate ${fmtInt(gateP)}P/${fmtInt(gateE)}E)` : 'Armor gone — hull exposed')
             : `Shields up (${cfg.ship.shield.faceType})`}
         </div>
         <div className="bar-row" title={shieldTip}>

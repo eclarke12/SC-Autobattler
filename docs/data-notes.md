@@ -66,6 +66,33 @@ Fixed weapons have no power fields. Use declared tunable per-ship: total fixed-w
 ## Fleet counts (as of probe)
 - 310 vehicles; 261 `is_spaceship`; 232 spaceship with ≥1 fixed weapon; 70 with manned turrets; 246 with images.
 
+## Armor deflection gate (2026-10-21) — `armor.deflection` + weapon alpha
+
+Source of truth: `armor.deflection.{physical|energy|...}` on the vehicle list payload (no extra calls). Values are per-shot damage thresholds in raw damage units, NOT percentages:
+
+- `deflection.{physical,energy}` map to the ballistic/energy gates; the other four types are 0 across the fleet.
+- Fleet range (228 in-snapshot ships): physical 5–554, energy 3–485; median 24. Small fighters ~5–20 (Avenger 11/9, Sabre 20/16), capitals 400–554 (Hammerhead 531/380, Javelin 539/473, Idris 554/485).
+- Sentinel: values ≥ 1,000,000 = game's "undeflectable" placeholder → normalized to 0 (no gate) in the snapshot. In-snapshot ships currently all have real small gates; sentinel variants (Skylark, Constellation Mk IV/V) are unarmed/display-excluded.
+- Gate is modeled as a hard gate: a weapon with `alpha` (per-shot damage) below the defender's deflection for its damage type deals **zero** damage while the defender's armor pool > 0. `alpha` 0 (missing data, 12/927 weapons) is never deflected. When armor is depleted, the gate lifts and full damage hits hull; passes deal full damage to armor with overflow to hull.
+- Weapon alpha: `weaponry.fixed_weapons.weapons[].alpha` for fixed guns; `turrets.manned[].weapons[].alpha` max per turret. Turret alpha = max of mount alphas.
+
+Not modeled (per product decision 2026-10-21):
+- Weapon penetration as distance/likelihood to damage internals (`items` endpoint has `max_penetration_thickness` in meters — out of scope).
+- `armor.penetration_resistance`: exactly 1.0 for physical/energy across all 310 vehicles (distortion 0) → no multiplier applied.
+- `armor.damage_multipliers.{type}` (0.65–1.0 armor damage multipliers) — future tunable candidate, not applied.
+- The old global 10% flat deflection (`DEFLECTION`) is removed; per-ship gates fully replace it.
+
+Shield interaction: the gate is applied to a weapon's contribution before shields too (hard "will not damage the target" per spec). Damage-type mix and shield factor are computed from the gated (surviving) output, so deflected weapons also stop influencing the shield type factor.
+
+## Shield absorption leak (2026-10-21)
+
+Incoming damage is split per damage type by the defender's shield factor: `factor = mid(absorption) − mid(resistance)` (clamped [0,1]) reaches the shield; the **remainder `(1 − factor)` phases through the shield and hits armor directly** (hull once armor is gone). This matters most for ballistic weapons: fleet shield `absorption.physical` is typically 0–0.45, so most physical damage bypasses energy shields (e.g. Avenger-line factor 0.10–0.33 → 67–90% leak). Energy against full energy absorption (factor 1.0) leaks ~0.
+
+- Implemented as `shieldSplitFor` in `derived.ts`; `applyHit` applies the shield part to the pool every round and the leak part to armor/hull every round (also on the break round: overflow + leak stack).
+- No new API fields needed — uses existing `shield.absorption` / `shield.resistance`.
+- Deflection gate remains a hard per-weapon gate (deflected weapons contribute nothing to shield, armor, or hull).
+
+
 ## Sample payloads (excerpted)
 
 Avenger Stalker: `health=11900`, `armor.health=1232`, `shield={hp:4488, regeneration:852, regeneration_time:5.27, face_type:"Bubble", reconfiguration_cooldown}`, resistance.physical={min:0,max:0.25} absorption.physical={min:0,max:0.45} absorption.energy={min:1,max:1}, `power={generation_segments:14, used_segments_shields:21.1}`, `power_pools={Shield:{size:2},WeaponGun:{size:4}}`, `weaponry.fixed_weapons.weapons=[{Revenant Gatling dps:1266},{Omnisky IX Cannon dps:546.8}×2]`, pilot_dps 2359.6, `turrets={manned:[],remote:[],pdc:[]}`, images[0].thumbnail_url=`media.starcitizen.tools/thumb/3/34/Avenger_Stalker_...600px...webp`.

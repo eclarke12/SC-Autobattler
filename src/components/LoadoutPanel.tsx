@@ -1,5 +1,5 @@
 import { fmtInt } from '../data';
-import { derivedStats, powerNotes, shieldFactorFor } from '../engine';
+import { derivedStats, gatedLoadout, powerNotes, shieldSplitFor } from '../engine';
 import type { ShipConfig, ShipData } from '../engine/types';
 import type { SideKnobs } from '../url';
 import { PowerBlocks } from './PowerBlocks';
@@ -12,7 +12,10 @@ export function LoadoutPanel({ config, opponent, onChange }: {
   const { ship } = config;
   const derived = derivedStats(config);
   const notes = powerNotes(config);
-  const effShield = opponent ? shieldFactorFor(opponent, derived.damageMix) : null;
+  const gated = opponent ? gatedLoadout(config, opponent, opponent.armor, derived.dpsScale) : null;
+  const split = gated && opponent ? shieldSplitFor(opponent, gated.mix) : null;
+  const firing = gated ? gated.fired : 0;
+  const deflectedCount = gated ? gated.deflected.reduce((s, d) => s + d.count, 0) : 0;
 
   const set = (patch: Partial<SideKnobs>) => onChange({ uuid: ship.uuid, turrets: config.mannedTurrets, w: config.powerToWeapons, s: config.powerToShields, ...patch });
 
@@ -53,8 +56,33 @@ export function LoadoutPanel({ config, opponent, onChange }: {
         <div><span>Power scale</span><b>{Math.round(derived.dpsScale * 100)}%</b></div>
         <div><span>Shield regen</span><b>{fmtInt(derived.shieldRegen)}/s</b></div>
         <div><span>Shield face</span><b>{ship.shield.faceType}</b></div>
-        {effShield !== null && <div><span>Shield cover vs foe</span><b>{Math.round(effShield * 100)}%</b></div>}
+        {split !== null && (
+          <div title="Share of your effective DPS the foe's shields absorb; the rest phases through straight onto their armor (hull once armor is gone)">
+            <span>Shield cover vs foe</span><b>{Math.round(split.shield * 100)}%</b>
+          </div>
+        )}
+        {split !== null && split.structure > 0 && (
+          <div title="Share of your effective DPS that bypasses the foe's shields (low shield absorption for your damage types, e.g. ballistic) and hits armor/hull directly">
+            <span>Leak past shields</span><b>{Math.round(split.structure * 100)}%</b>
+          </div>
+        )}
+        {gated && opponent && (
+          <div title={`Enemy armor deflect gate ${fmtInt(opponent.armorDeflection.physical)} ballistic / ${fmtInt(opponent.armorDeflection.energy)} energy: weapons whose per-shot damage is below the gate deal no damage while the enemy has armor`}>
+            <span>Through foe's armor gate</span><b>{firing - deflectedCount}/{firing}</b>
+          </div>
+        )}
+        {gated && opponent && (
+          <div><span>Effective DPS vs foe</span><b>{fmtInt(gated.dps)}</b></div>
+        )}
       </div>
+
+      {gated && opponent && deflectedCount > 0 && (
+        <ul className="power-notes">
+          <li>
+            {deflectedCount}/{firing} weapon(s) deflected by {opponent.name}'s armor gate ({fmtInt(opponent.armorDeflection.physical)}P/{fmtInt(opponent.armorDeflection.energy)}E): {gated.deflected.map((d) => (d.count > 1 ? `${d.name}×${d.count}` : d.name)).join(', ')} — zero damage while their armor holds.
+          </li>
+        </ul>
+      )}
 
       {notes.length > 0 && (
         <ul className="power-notes">

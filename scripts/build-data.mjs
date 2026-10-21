@@ -21,6 +21,7 @@ const shipSchema = z.object({
   image: z.string(),
   health: z.number().positive(),
   armor: z.number().nonnegative(),
+  armorDeflection: z.record(damageTypeSchema, z.number().nonnegative()),
   shield: z.object({
     hp: z.number().positive(),
     regenPerSec: z.number().nonnegative(),
@@ -34,6 +35,7 @@ const shipSchema = z.object({
     type: z.enum(['fixed', 'turret']),
     damageType: damageTypeSchema,
     dps: z.number().nonnegative(),
+    alpha: z.number().nonnegative(),
     power: z.number().positive(),
   })).min(1),
   turretCount: z.number().int().nonnegative(),
@@ -66,6 +68,18 @@ function toRanges(obj) {
 
 function num(v, fallback) {
   return typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+}
+
+// armor.deflection values are per-shot damage thresholds; >= 1,000,000 is the game's
+// "undeflectable" sentinel (no gate), 0 means no armor gate for that type.
+const UNDEFLECTABLE = 1e6;
+function toDeflection(obj) {
+  const out = {};
+  for (const t of DAMAGE_TYPES) {
+    const v = num(obj?.[t], 0);
+    out[t] = v >= UNDEFLECTABLE ? 0 : v;
+  }
+  return out;
 }
 
 const NUMERIC_SIZE = { 1: 'snub', 2: 'small', 3: 'medium', 4: 'large', 5: 'large', 6: 'capital', 10: 'special' };
@@ -117,15 +131,18 @@ function normalize(ship) {
       type: 'fixed',
       damageType: damageTypeFor(w.name ?? ''),
       dps: w.dps,
+      alpha: num(w.alpha, 0),
       power: 1,
     }));
   const manned = (ship.turrets?.manned ?? []).map((t, i) => {
     const label = t.weapons?.[0]?.name ?? t.class_name ?? t.display_name ?? `Turret ${i + 1}`;
+    const maxAlpha = Math.max(0, ...(t.weapons ?? []).map((w) => num(w.alpha, 0)));
     return {
       name: label,
       type: 'turret',
       damageType: damageTypeFor(label),
       dps: num(t.dps_total, 0),
+      alpha: maxAlpha,
       power: 1,
     };
   });
@@ -141,6 +158,7 @@ function normalize(ship) {
     image: ship.images?.[0]?.thumbnail_url ?? '',
     health: ship.health,
     armor: num(ship.armor?.health, 0),
+    armorDeflection: toDeflection(ship.armor?.deflection),
     shield: {
       hp: shield.hp,
       regenPerSec: num(shield.regeneration, 0),

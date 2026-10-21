@@ -46,9 +46,13 @@ Headless TypeScript engine in `src/engine/` — no React, no DOM:
 
 - 10-second rounds; each side fires fixed weapons + manned turrets.
 - Shields absorb first (with a power-segment bonus of +25%/segment and mid-absorption minus
-  mid-resistance mitigation), then armor, then hull.
-- Seeded PRNG (mulberry32) with ±15% variance and 10% deflection ⇒ the same seed always replays
-  the same battle.
+  mid-resistance mitigation), then armor, then hull. Damage a shield absorbs poorly — most
+  ballistic hits — phases through it and strikes armor/hull directly.
+- Armor deflection is a hard gate: a weapon whose per-shot damage (alpha) is below the defender's
+  armor deflection for that damage type (ballistic/energy) deals no damage while the defender's
+  armor holds; passes strip armor and overflow to hull. Gates come from the wiki API
+  `armor.deflection` + per-weapon alpha (see `docs/data-notes.md`).
+- Seeded PRNG (mulberry32) with ±15% variance ⇒ the same seed always replays the same battle.
 - Power allocation: weapons need `ceil(DPS / 500)` supply segments; shortfalls cut DPS
   proportionally (shown as notes in the summary).
 - Tunables live in `src/engine/constants.ts`.
