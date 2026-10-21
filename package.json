@@ -6,12 +6,18 @@
   "description": "Star Citizen ship autobattler MVP — picks two real wiki ships, simulates a seeded round-based battle.",
   "scripts": {
     "probe": "node scripts/probe.mjs",
-    "build:data": "node scripts/build-data.mjs"
+    "build:data": "node scripts/build-data.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
