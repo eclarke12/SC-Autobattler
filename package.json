@@ -1,0 +1,11 @@
+{
+  "name": "shipbattler",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Star Citizen ship autobattler MVP — picks two real wiki ships, simulates a seeded round-based battle.",
+  "scripts": {
+    "probe": "node scripts/probe.mjs",
+    "build:data": "node scripts/build-data.mjs"
+  }
+}
