@@ -1,12 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CAREERS, MANUFACTURERS, SHIPS, SIZES } from '../data';
 import type { ShipData } from '../engine/types';
 import { ShipCard } from './ShipCard';
 
-export function ShipPicker({ selected, onSelect, exclude }: {
+export function ShipPicker({ selected, scope, onSelect, focusToken = 0 }: {
   selected: ShipData | null;
+  scope: string;
   onSelect: (ship: ShipData) => void;
-  exclude?: string;
+  focusToken?: number;
 }) {
   const [query, setQuery] = useState('');
   const [manufacturer, setManufacturer] = useState('');
@@ -16,14 +17,34 @@ export function ShipPicker({ selected, onSelect, exclude }: {
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
     return SHIPS.filter((s) => {
-      if (s.uuid === exclude) return false;
       if (manufacturer && s.manufacturer !== manufacturer) return false;
       if (size && s.sizeClass !== size) return false;
       if (career && (s.career ?? 'Unclassified') !== career) return false;
       if (q && !`${s.name} ${s.manufacturer} ${s.role ?? ''} ${s.career ?? ''}`.toLowerCase().includes(q)) return false;
       return true;
+    }).sort((x, y) => x.name.localeCompare(y.name, undefined, { numeric: true, sensitivity: 'base' }));
+  }, [query, manufacturer, size, career]);
+
+  const visible = useMemo(() => {
+    const top = filtered.slice(0, 120);
+    if (selected && !top.some((s) => s.uuid === selected.uuid)) return [selected, ...top];
+    return top;
+  }, [filtered, selected]);
+
+  const listRef = useRef<HTMLDivElement>(null);
+  const lastToken = useRef(0);
+
+  useEffect(() => {
+    if (!focusToken || focusToken === lastToken.current || !selected) return;
+    lastToken.current = focusToken;
+    setQuery('');
+    setManufacturer('');
+    setSize('');
+    setCareer('');
+    requestAnimationFrame(() => {
+      listRef.current?.querySelector(`#ship-card-${scope}-${selected.uuid}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });
-  }, [query, manufacturer, size, career, exclude]);
+  }, [focusToken, selected?.uuid, scope]);
 
   return (
     <div className="picker">
@@ -48,11 +69,12 @@ export function ShipPicker({ selected, onSelect, exclude }: {
         </select>
       </div>
       <div className="picker-count">{filtered.length} ships</div>
-      <div className="ship-list">
-        {filtered.slice(0, 120).map((s) => (
+      <div className="ship-list" ref={listRef}>
+        {visible.map((s) => (
           <ShipCard
             key={s.uuid}
             ship={s}
+            scope={scope}
             selected={selected?.uuid === s.uuid}
             onSelect={() => onSelect(s)}
           />

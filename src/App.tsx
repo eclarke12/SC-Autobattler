@@ -44,6 +44,7 @@ export function App() {
     return ca && cb ? { a: ca, b: cb, seed: initial.seed } : null;
   });
   const [shareLink, setShareLink] = useState<string | null>(null);
+  const [focusToken, setFocusToken] = useState(0);
 
   const setShip = (side: 'a' | 'b', ship: ShipData) => {
     const setter = side === 'a' ? setA : setB;
@@ -56,9 +57,11 @@ export function App() {
   };
 
   const randomMatchup = () => {
-    const pick = () => SHIPS[Math.floor(Math.random() * SHIPS.length)];
-    setA({ ship: pick(), knobs: defaultKnobs(pick()) });
-    setB({ ship: pick(), knobs: defaultKnobs(pick()) });
+    const shipA = SHIPS[Math.floor(Math.random() * SHIPS.length)];
+    const shipB = SHIPS[Math.floor(Math.random() * SHIPS.length)];
+    setA({ ship: shipA, knobs: defaultKnobs(shipA) });
+    setB({ ship: shipB, knobs: defaultKnobs(shipB) });
+    setFocusToken((t) => t + 1);
   };
 
   const fight = () => {
@@ -112,8 +115,9 @@ export function App() {
               </h2>
               <ShipPicker
                 selected={s.ship}
+                scope={side}
                 onSelect={(ship) => setShip(side, ship)}
-                exclude={side === 'a' ? b.ship?.uuid : a.ship?.uuid}
+                focusToken={focusToken}
               />
               {s.ship && (
                 <LoadoutPanel

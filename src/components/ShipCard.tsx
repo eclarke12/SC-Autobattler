@@ -2,9 +2,10 @@ import { fmtInt, shipTotalDps } from '../data';
 import { TORPEDO_FIRE_EVERY_ROUNDS } from '../engine';
 import type { ShipData } from '../engine/types';
 
-export function ShipCard({ ship, selected, onSelect }: {
+export function ShipCard({ ship, selected, scope, onSelect }: {
   ship: ShipData;
   selected: boolean;
+  scope: string;
   onSelect: () => void;
 }) {
   const fixed = ship.weapons.filter((w) => w.type === 'fixed');
@@ -14,7 +15,7 @@ export function ShipCard({ ship, selected, onSelect }: {
     : 0;
 
   return (
-    <button className={`ship-card${selected ? ' selected' : ''}`} onClick={onSelect}>
+    <button id={`ship-card-${scope}-${ship.uuid}`} className={`ship-card${selected ? ' selected' : ''}`} onClick={onSelect}>
       <div className="ship-thumb">
         {ship.image
           ? <img src={ship.image} alt={ship.name} loading="lazy" />
