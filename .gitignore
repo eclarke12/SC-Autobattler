@@ -2,3 +2,5 @@ node_modules/
 dist/
 probe/out/
 *.log
+# Kilo agent tool state (plans, sessions, UI recovery)
+.kilo/
