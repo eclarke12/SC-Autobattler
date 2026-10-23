@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { fmtInt } from '../data';
-import { powerNotes, ROUND_SECONDS } from '../engine';
+import { fmtPip, isOverdrawn, netPower, powerNotes, ROUND_SECONDS } from '../engine';
 import type { BattleResult, ShipConfig } from '../engine/types';
 import { DAMAGE_TYPES } from '../engine/types';
 
@@ -65,18 +65,35 @@ export function Summary({ result, a, b, shareLink, onEdit }: {
     const derived = side.derived;
     const totalDealt = Math.max(1, side.totalDamageDealt);
     const turretShare = derived.weaponDps > 0 ? derived.turretDps / Math.max(1, derived.fixedDps + derived.turretDps) : 0;
+    const pnet = netPower(cfg.ship, cfg);
+    const overdraw = isOverdrawn(cfg.ship, cfg);
+    const gunFrac = cfg.ship.weaponPool > 0 ? Math.min(1, Math.max(0, cfg.powerToWeapons / cfg.ship.weaponPool)) : 0;
+    const shieldFrac = cfg.ship.shieldPool > 0 ? Math.min(1, cfg.powerToShields / cfg.ship.shieldPool) : 0;
     return (
       <div className={`summary-side side-${key}`}>
         <h3>{side.shipName}</h3>
+        <div
+          className={`summary-row power-row${overdraw ? ' overdraw' : ''}`}
+          title={`APU ${cfg.ship.powerSegments} pips · net ${fmtPip(pnet)} — gun DPS ×${Math.round(gunFrac * 100)}% (powerToWeapons ${cfg.powerToWeapons}/${cfg.ship.weaponPool}), shield regen ×${Math.round(shieldFrac * 100)}% (powerToShields ${cfg.powerToShields}/${cfg.ship.shieldPool})`}
+        >
+          <span>
+            Net power <span className={`net-chip${pnet < 0 ? ' net-neg' : ''}`}>{fmtPip(pnet)}</span>
+            {overdraw && <b className="overdraw-warn"> ⚠ overdraw</b>}
+          </span>
+          <b>guns {Math.round(gunFrac * 100)}% · shields {Math.round(shieldFrac * 100)}%</b>
+        </div>
         <div className="summary-row"><span>Total damage dealt</span><b>{fmtInt(side.totalDamageDealt)}</b></div>
         <div className="summary-row"><span>Damage mix (fixed vs turret)</span><b>{Math.round((1 - turretShare) * 100)}% / {Math.round(turretShare * 100)}%</b></div>
         {(side.missilesFired > 0 || cfg.ship.missiles.ammo > 0) && (
-          <div className="summary-row" title={`Warload ${cfg.ship.missiles.ammo} × ${cfg.ship.missiles.perShot}${cfg.ship.missiles.torpedo ? ' (torpedo)' : ''}; evaded missiles never deal damage`}>
-            <span>{cfg.ship.missiles.torpedo ? 'Torpedoes' : 'Missiles'} fired / evaded / hit</span>
+          <div className="summary-row" title={`Warload ${cfg.ship.missiles.ammo} × ${cfg.ship.missiles.perShot}${cfg.ship.missiles.damageType === 'distortion' ? ' (quantum torpedo, distortion blast)' : cfg.ship.missiles.torpedo ? ' (torpedo)' : ''}; evaded missiles never deal damage; missiles ignore armor deflection`}>
+            <span>{cfg.ship.missiles.damageType === 'distortion' ? 'Quantum torpedoes' : cfg.ship.missiles.torpedo ? 'Torpedoes' : 'Missiles'} fired / evaded / hit</span>
             <b>{side.missilesFired} / {side.missilesEvaded} / {side.missilesHit}</b>
           </div>
         )}
         <div className="summary-row"><span>Shield down time</span><b>{fmtInt(side.shieldDownRounds * ROUND_SECONDS)}s{side.firstShieldBreakRound !== null ? ` (first break round ${side.firstShieldBreakRound})` : ''}</b></div>
+        {side.gunsDryRounds > 0 && (
+          <div className="summary-row"><span>Guns dry</span><b>{fmtInt(side.gunsDryRounds)}</b></div>
+        )}
         <div className="summary-row"><span>Hull at end</span><b>{Math.round(side.hullPctAtEnd * 100)}%</b></div>
         <div className="dps-breakdown">
           {DAMAGE_TYPES.filter((t) => side.damageByType[t] > 0).map((t) => (
@@ -131,6 +148,10 @@ export function Summary({ result, a, b, shareLink, onEdit }: {
       <div className="summary-grid">
         {sidePanel(a, 'a')}
         {sidePanel(b, 'b')}
+      </div>
+
+      <div className="power-legend" title="How the power knobs shaped this battle">
+        Power scaling: gun DPS × powerToWeapons/weaponPool · shield regen × powerToShields/shieldPool · a negative net (overdraw) means the allocation claims more pips than the APU generates
       </div>
 
       <div className="share-box">

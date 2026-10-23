@@ -1,12 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { fmtInt } from '../data';
-import { derivedStats, ROUND_SECONDS, simulate } from '../engine';
+import { allocatedPower, derivedStats, fmtPip, gunDrawFull, isOverdrawn, netPower, ordnanceKindLabel, ROUND_SECONDS, simulate } from '../engine';
 import type { ShipConfig, ShipRoundState } from '../engine/types';
 import { Summary } from './Summary';
 
 type Speed = '0.5' | '1' | '2' | 'instant';
+type Side = 'a' | 'b';
 
 const SPEED_MS: Record<Speed, number> = { '0.5': 2000, '1': 1000, '2': 500, instant: 0 };
+/** Missile/torpedo flight is shared and scaled by ordnance size class. */
+const MISSILE_START_MS = 120;
+
+type MissileOutcome = 'evaded' | 'impact';
+
+function missileOutcome(def: ShipRoundState | null, kind: string): MissileOutcome | null {
+  if (!def) return null;
+  if (def.events.some((e) => e.startsWith(`${kind} evaded`))) return 'evaded';
+  if (def.events.some((e) => e.startsWith(`${kind} impact`))) return 'impact';
+  return null;
+}
 
 function damageTaken(r: ShipRoundState): number {
   return Math.max(0, (r.shieldBefore - r.shieldAfter) + (r.armorBefore - r.armorAfter) + (r.hullBefore - r.hullAfter));
@@ -36,7 +49,85 @@ export function BattleView({ a, b, seed, shareLink, onEdit }: {
   }, [speed, shown, total]);
 
   const round = shown > 0 ? result.rounds[shown - 1] : null;
-  const stateFor = (side: 'a' | 'b'): ShipRoundState | null => round ? round[side] : null;
+  const stateFor = (side: Side): ShipRoundState | null => round ? round[side] : null;
+
+  const cfgFor = (side: Side): ShipConfig => (side === 'a' ? a : b);
+  const kindFor = (side: Side): string | null => {
+    const m = cfgFor(side).ship.missiles;
+    return m && m.ammo > 0 ? ordnanceKindLabel(m) : null;
+  };
+  const firedMissile = (side: Side): boolean => {
+    const st = stateFor(side);
+    const kind = kindFor(side);
+    return !!st && !!kind && st.events.some((e) => e.startsWith(`${kind} fired`));
+  };
+  const armorDeflects = (defSide: Side): boolean => {
+    const st = stateFor(defSide);
+    return !!st && st.armorBefore > 0 && st.events.some((e) => e.startsWith('Armor deflects'));
+  };
+
+  const projectileFx = (): ReactNode => {
+    if (!round || shown === 0 || shown >= total || speed === 'instant') return null;
+    const dur = SPEED_MS[speed];
+    const mdur = dur - MISSILE_START_MS;
+    const sparkDelay = MISSILE_START_MS + Math.round(mdur * 0.78);
+    const flareDelay = MISSILE_START_MS + Math.round(mdur * 0.45);
+    const items: ReactNode[] = [];
+    for (const sd of ['ab', 'ba'] as const) {
+      const atk: Side = sd === 'ab' ? 'a' : 'b';
+      const def: Side = sd === 'ab' ? 'b' : 'a';
+      const deflect = armorDeflects(def);
+      [0, 1, 2].forEach((i) => {
+        items.push(
+          <span
+            key={`${deflect ? 'ric' : 'p'}-${sd}-${i}`}
+            className={`projectile ${sd}${deflect ? ` ricochet${i % 2 === 1 ? ' down' : ''}` : ''}`}
+            style={{ top: `${40 + i * 10}%`, animationDuration: `${dur}ms`, animationDelay: `${i * 90}ms` }}
+          />,
+        );
+      });
+      if (deflect) {
+        items.push(
+          <span
+            key={`spark-${sd}`}
+            className={`spark ${sd}`}
+            style={{ top: `${46 + ((shown * 17 + (sd === 'ab' ? 0 : 11)) % 3) * 10}%`, animationDuration: `${dur}ms`, animationDelay: `${Math.round(dur * 0.62)}ms` }}
+          />,
+        );
+      }
+      const kind = kindFor(atk);
+      if (kind && firedMissile(atk)) {
+        const outcome = missileOutcome(stateFor(def), kind) ?? 'impact';
+        const mscale = 0.8 + Math.min(10, cfgFor(atk).ship.missiles.size) * 0.13;
+        items.push(
+          <span
+            key={`m-${sd}`}
+            className={`projectile missile ${sd} m-${outcome}`}
+            style={{ '--mscale': mscale, animationDuration: `${mdur}ms`, animationDelay: `${MISSILE_START_MS}ms` } as CSSProperties}
+          />,
+        );
+        if (outcome === 'evaded') {
+          items.push(
+            <span
+              key={`flare-${sd}`}
+              className={`flare ${sd}`}
+              style={{ top: `${36 + ((shown * 23 + (sd === 'ab' ? 5 : 17)) % 4) * 8}%`, animationDuration: `${Math.max(240, dur - flareDelay)}ms`, animationDelay: `${flareDelay}ms` }}
+            />,
+          );
+        }
+        if (outcome !== 'evaded') {
+          items.push(
+            <span
+              key={`mspark-${sd}`}
+              className={`spark ${sd} m-hit`}
+              style={{ top: `${46 + ((shown * 29 + (sd === 'ab' ? 7 : 2)) % 3) * 10}%`, animationDuration: `${Math.max(180, dur - sparkDelay)}ms`, animationDelay: `${sparkDelay}ms` }}
+            />,
+          );
+        }
+      }
+    }
+    return <div className="projectile-layer" key={`proj-${shown}`}>{items}</div>;
+  };
 
   const sideView = (side: 'a' | 'b', cfg: ShipConfig) => {
     const st = stateFor(side);
@@ -49,14 +140,18 @@ export function BattleView({ a, b, seed, shareLink, onEdit }: {
     const hullPct = Math.min(100, (hullCur / Math.max(1, cfg.ship.health)) * 100);
     const taken = st ? damageTaken(st) : 0;
     const shieldsDown = st ? !st.shieldActive : true;
-    const extraSegs = Math.max(0, cfg.powerToShields - cfg.ship.shieldPool);
+    const shieldFrac = cfg.ship.shieldPool > 0 ? Math.min(1, cfg.powerToShields / cfg.ship.shieldPool) : 0;
+    const gunFrac = cfg.ship.weaponPool > 0 ? Math.min(1, Math.max(0, cfg.powerToWeapons / cfg.ship.weaponPool)) : 0;
+    const allocated = allocatedPower(cfg.ship, cfg.allocs ?? [], cfg.powerToWeapons, cfg.powerToShields, cfg.pdcOn ?? true);
+    const pnet = netPower(cfg.ship, cfg);
+    const overdraw = isOverdrawn(cfg.ship, cfg);
     const shieldBreak = !!st && st.shieldBefore > 0 && st.shieldAfter <= 0;
     const destroyed = !!st && st.hullBefore > 0 && st.hullAfter <= 0;
-    const shieldTip = `Shield pool ${fmtInt(shieldCur)} / ${fmtInt(cfg.ship.shield.hp)} · ${cfg.ship.shield.faceType} face · regen ${fmtInt(d.shieldRegen)}/s${extraSegs > 0 ? ` (+${extraSegs} bonus seg${extraSegs === 1 ? '' : 's'})` : ''} · damage this shield absorbs poorly (e.g. ballistic) phases through onto armor`;
+    const shieldTip = `Shield pool ${fmtInt(shieldCur)} / ${fmtInt(cfg.ship.shield.hp)} · ${cfg.ship.shield.faceType} face · regen ${fmtInt(d.shieldRegen)}/s (${Math.round(shieldFrac * 100)}% of the ${cfg.ship.shieldPool}-pip power allocation) · damage this shield absorbs poorly (e.g. ballistic) phases through onto armor`;
     const gateP = cfg.ship.armorDeflection.physical;
     const gateE = cfg.ship.armorDeflection.energy;
     const gateNote = cfg.ship.armor > 0 ? ` · deflect gate ${fmtInt(gateP)} ballistic / ${fmtInt(gateE)} energy` : '';
-    const armorTip = `Armor pool ${fmtInt(armorCur)} / ${fmtInt(cfg.ship.armor)} — absorbs after shields drop${gateNote}; shots below the gate deal no damage while armor holds`;
+    const armorTip = `Armor pool ${fmtInt(armorCur)} / ${fmtInt(cfg.ship.armor)} — absorbs after shields drop${gateNote}; shots at or below the gate deal no damage while armor holds`;
     const hullTip = `Hull integrity ${fmtInt(hullCur)} / ${fmtInt(cfg.ship.health)} — destruction at 0`;
     return (
       <div className={`combatant side-${side}${destroyed ? ' destroyed' : ''}`}>
@@ -65,6 +160,12 @@ export function BattleView({ a, b, seed, shareLink, onEdit }: {
           <div>
             <div className="combatant-name">{cfg.ship.name}</div>
             <div className="combatant-sub">{cfg.ship.manufacturer} · {cfg.ship.sizeClass}</div>
+            <div
+              className={`power-state${overdraw ? ' overdraw' : ''}`}
+              title={`APU ${cfg.ship.powerSegments} pips · ${fmtPip(allocated)} allocated (systems + ${cfg.powerToShields} shield pips + gun draw ${fmtPip(gunDrawFull(cfg.ship, cfg.pdcOn ?? true))} at ${Math.round(gunFrac * 100)}% pips) · gun DPS ×${Math.round(gunFrac * 100)}%, shield regen ×${Math.round(shieldFrac * 100)}%`}
+            >
+              power {fmtPip(pnet)} · guns {Math.round(gunFrac * 100)}% · shields {Math.round(shieldFrac * 100)}%{overdraw && <b className="overdraw-warn"> ⚠ overdraw</b>}
+            </div>
           </div>
           {taken > 0 && <div className="damage-float" key={`dmg-${side}-${shown}`}>−{fmtInt(taken)}</div>}
         </div>
@@ -78,7 +179,7 @@ export function BattleView({ a, b, seed, shareLink, onEdit }: {
           <div className="bar shield"><div style={{ width: `${shieldPct}%` }} /></div>
           <div className="bar-num">
             {fmtInt(shieldCur)}
-            <span className="regen-indicator" title={`regen/s, +${extraSegs} bonus seg(s)`}>▲{fmtInt(d.shieldRegen)}/s{extraSegs > 0 ? ` +${extraSegs}` : ''}</span>
+            <span className="regen-indicator" title={`regen/s = shield regen × powerToShields/shieldPool (${Math.round(shieldFrac * 100)}%)`}>▲{fmtInt(d.shieldRegen)}/s</span>
           </div>
         </div>
         <div className="bar-row" title={armorTip}>
@@ -117,19 +218,7 @@ export function BattleView({ a, b, seed, shareLink, onEdit }: {
           {sideView('a', a)}
           {sideView('b', b)}
         </div>
-        {shown > 0 && shown < total && speed !== 'instant' && (
-          <div className="projectile-layer" key={`proj-${shown}`}>
-            {(['ab', 'ba'] as const).flatMap((sd) =>
-              [0, 1, 2].map((i) => (
-                <span
-                  key={`${sd}-${i}`}
-                  className={`projectile ${sd}`}
-                  style={{ top: `${40 + i * 10}%`, animationDuration: `${SPEED_MS[speed]}ms`, animationDelay: `${i * 90}ms` }}
-                />
-              ))
-            )}
-          </div>
-        )}
+        {projectileFx()}
       </div>
 
       {finished ? (

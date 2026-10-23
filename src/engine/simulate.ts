@@ -1,5 +1,5 @@
 import { MAX_ROUNDS, ROUND_SECONDS, TORPEDO_FIRE_EVERY_ROUNDS, VARIANCE } from './constants';
-import { decoyEvadeChance, decoyStockFor, deflectionFor, derivedStats, gatedLoadout, isDeflectedByGate, requiredDecoysFor, shieldSplitFor } from './derived';
+import { armorRatioOf, decoyEvadeChance, decoyStockFor, deflectionFor, derivedStats, effectiveGate, gatedLoadout, gunAmmoInfo, requiredDecoysFor, shieldSplitFor } from './derived';
 import type { GatedAttack } from './derived';
 import { mulberry32 } from './rng';
 import type {
@@ -33,9 +33,17 @@ interface CombatState {
   missilesEvaded: number;
   missilesHit: number;
   decoysLeft: number;
+  /** Shots remaining per weapon, index-aligned with `ship.weapons` (W4). `Infinity` =
+   *  infinite (energy lasers draw ship power; alpha-0 guns have unknown fire rate). */
+  ammoLeft: number[];
+  /** Shots each weapon consumes per round (0 for infinite-ammo weapons). */
+  shotsPerRound: number[];
+  /** Weapons whose ammunition has run dry (W4 → SideSummary.gunsDryRounds). */
+  gunsDry: number;
 }
 
 function initState(ship: ShipData): CombatState {
+  const ammo = ship.weapons.map((w) => gunAmmoInfo(w, ROUND_SECONDS));
   return {
     ship,
     shield: ship.shield.hp,
@@ -54,7 +62,28 @@ function initState(ship: ShipData): CombatState {
     missilesEvaded: 0,
     missilesHit: 0,
     decoysLeft: decoyStockFor(ship),
+    ammoLeft: ship.weapons.map((w) => (w.ammo === null ? Number.POSITIVE_INFINITY : w.ammo)),
+    shotsPerRound: ammo.map((a) => a.perRound),
+    gunsDry: 0,
   };
+}
+
+/** W4 gun-ammo consumption: only weapons the side actually fired this round (per
+ *  `gatedLoadout`'s fired predicate — deflected shots included, a deflected shot left the
+ *  barrel) spend their per-round burst; unpowered (0 dps), dry and ammo-less weapons are
+ *  skipped, and a weapon goes dry at the end of the round it fires its last magazine. */
+function depleteGuns(state: CombatState, roundIndex: number, events: string[], firedIndices: number[]): void {
+  for (const i of firedIndices) {
+    const w = state.ship.weapons[i];
+    const left = state.ammoLeft[i];
+    if (!Number.isFinite(left) || left <= 0) continue;
+    const after = left - state.shotsPerRound[i];
+    state.ammoLeft[i] = Math.max(0, after);
+    if (state.ammoLeft[i] === 0) {
+      state.gunsDry++;
+      events.push(`${w.name} ammunition depleted at round ${roundIndex} (${state.shotsPerRound[i]} shots/round) — silent from the next round`);
+    }
+  }
 }
 
 function currentPhase(s: CombatState): Phase {
@@ -64,39 +93,47 @@ function currentPhase(s: CombatState): Phase {
 }
 
 /** Apply one round of incoming damage (post deflection-gate, post-variance) split into the
- *  shield-absorbed part and the part phasing through shields straight onto armor/hull.
- *  Passes the gate: damage hits armor first; armor depletion overflow carries to hull.
- *  Mutates state. */
-function applyHit(def: CombatState, shieldPart: number, structPart: number, roundIndex: number, events: string[]): number {
+ *  shield-absorbed part and the per-damage-type parts phasing through shields onto
+ *  armor/hull. Armor HP is consumed at dmg × armorMultipliers[type]; the structural hull
+ *  takes raw damage (A4, 2026-10-22). Armor depletion overflow carries to hull, split by
+ *  the attacker's damage mix. Mutates state. */
+function applyHit(def: CombatState, shieldPart: number, structByType: Record<DamageType, number>, mix: Record<DamageType, number>, roundIndex: number, events: string[]): number {
   let applied = 0;
   if (def.shieldActive && def.shield > 0) {
     def.shield -= shieldPart;
     applied += shieldPart;
-    applied += applyToStructure(def, structPart, events);
+    applied += applyToStructure(def, structByType, events);
     if (def.shield <= 0) {
       const overflow = -def.shield;
       def.shield = 0;
       def.shieldActive = false;
       def.downRoundsLeft = Math.max(1, Math.ceil(def.ship.shield.reconfigurationCooldown / ROUND_SECONDS));
       if (def.shieldBrokenAtRound === null) def.shieldBrokenAtRound = roundIndex;
-      events.push(`Shields broken at round ${roundIndex} (shield cover ${(shieldPart / Math.max(1e-9, shieldPart + structPart) * 100).toFixed(0)}%), overflow ${fmt(overflow)} to armor; down for ${def.downRoundsLeft} round(s)`);
-      applied += applyToStructure(def, overflow, events);
+      events.push(`Shields broken at round ${roundIndex} (shield cover ${(shieldPart / Math.max(1e-9, shieldPart + sumTypes(structByType)) * 100).toFixed(0)}%), overflow ${fmt(overflow)} to armor; down for ${def.downRoundsLeft} round(s)`);
+      applied += applyToStructure(def, scaleMix(mix, overflow), events);
     }
   } else {
-    applied += applyToStructure(def, shieldPart + structPart, events);
+    applied += applyToStructure(def, scaleMix(mix, shieldPart + sumTypes(structByType)), events);
   }
   return applied;
 }
 
-function applyToStructure(def: CombatState, damage: number, events: string[]): number {
-  let rest = damage;
+function applyToStructure(def: CombatState, rawByType: Record<DamageType, number>, events: string[]): number {
+  const mults = def.ship.armorMultipliers;
+  let raw = 0;
+  let armorDamage = 0;
+  for (const t of DAMAGE_TYPES) {
+    raw += rawByType[t];
+    armorDamage += rawByType[t] * (mults?.[t] ?? 1);
+  }
+  const hullRaw = raw;
   let applied = 0;
   if (def.armor > 0) {
-    const toArmor = Math.min(def.armor, rest);
+    const toArmor = Math.min(def.armor, armorDamage);
     def.armor -= toArmor;
-    rest -= toArmor;
     applied += toArmor;
   }
+  const rest = hullRaw - applied;
   if (rest > 0) {
     def.hull -= rest;
     applied += rest;
@@ -105,22 +142,51 @@ function applyToStructure(def: CombatState, damage: number, events: string[]): n
   return applied;
 }
 
+function sumTypes(byType: Record<DamageType, number>): number {
+  return DAMAGE_TYPES.reduce((s, t) => s + byType[t], 0);
+}
+
+function scaleMix(mix: Record<DamageType, number>, v: number): Record<DamageType, number> {
+  const out = {} as Record<DamageType, number>;
+  for (const t of DAMAGE_TYPES) out[t] = mix[t] * v;
+  return out;
+}
+
 function fmt(n: number): string {
   return Math.round(n).toLocaleString('en-US');
 }
 
 /** Missile blast damage mix: full explosive damage as physical, so it routes through
- *  the existing shield absorption/resistance leak model (shared with the UI). */
+ *  the existing shield absorption leak model (shared with the UI). */
 export const PHYSICAL_MIX: Record<DamageType, number> = {
   physical: 1, energy: 0, distortion: 0, thermal: 0, biochemical: 0, stun: 0,
 };
 
+/** Quantum (distortion) blast mix: distortion is fully absorbed by shields fleet-wide
+ *  (absorption {1,1}, probe GC5) and undeflectable (deflection 0 fleet-wide) — quantum
+ *  torpedoes grind shield pools and strike structure only once shields are down. */
+const DISTORTION_MIX: Record<DamageType, number> = {
+  physical: 0, energy: 0, distortion: 1, thermal: 0, biochemical: 0, stun: 0,
+};
+
+/** Ordinance kind label from the warload: quantum (distortion) racks → 'Quantum torpedo',
+ *  torpedo-size racks → 'Torpedo', else 'Missile'. Engine-authoritative so the UI and
+ *  event-string matching share one label source (Finding 9). */
+export function ordnanceKindLabel(m: ShipData['missiles']): 'Quantum torpedo' | 'Torpedo' | 'Missile' {
+  return m.damageType === 'distortion' ? 'Quantum torpedo' : m.torpedo ? 'Torpedo' : 'Missile';
+}
+
 /** One missile salvo per firing side per cadence, resolved with the defender's decoys.
- *  Decoy barrage must stack to >= target IR signature to drag the seeker off; a partial
- *  barrage only partially protects; no countermeasures at all = every missile hits.
- *  A small pilot-fumble RNG lets missiles slip through sufficient decoys.
- *  Impacts deal the full blast as physical damage, so the explosion bleeds through
- *  shields via the existing absorption/resistance leak model. Mutates both states. */
+ *  Per-missile decoy semantics (C3/C4, 2026-10-22): against each incoming missile the
+ *  defender commits `min(required, stockLeft)` charges; a seeded roll evades with
+ *  `P = (1 − MISSILE_FUMBLE) × committed/required` — a full barrage evades everything
+ *  except the pilot-fumble share, a partial barrage only partially protects, zero stock
+ *  never evades. The committed charges burn on hit AND on evade (in-game a launched flare
+ *  is spent either way — fixes the old bug where an impact burned the entire stock).
+ *  Impacts bypass the armor deflection gate entirely (O1: explosives and quantum have
+ *  deflection 0 in-game — decoys and maneuver are the defense) and deal blast damage as
+ *  physical (or distortion for quantum racks, O3), bleeding through shields via the
+ *  absorption leak model. Mutates both states. */
 function missilePhase(att: CombatState, def: CombatState, variance: number, round: number, atkEvents: string[], defEvents: string[], rand: () => number): void {
   const m = att.ship.missiles;
   if (!m || m.ammo <= 0 || att.missilesLeft <= 0) return;
@@ -129,43 +195,41 @@ function missilePhase(att: CombatState, def: CombatState, variance: number, roun
 
   att.missilesLeft--;
   att.missilesFired++;
-  const kind = m.torpedo ? 'Torpedo' : 'Missile';
+  const quantum = m.damageType === 'distortion';
+  const kind = ordnanceKindLabel(m);
   atkEvents.push(`${kind} fired (${att.missilesLeft} left)`);
 
   const required = requiredDecoysFor(def.ship, m.torpedo);
   const stockBefore = def.decoysLeft;
-  const evadeP = decoyEvadeChance(stockBefore, required);
-  const evaded = evadeP > 0 && rand() < evadeP;
+  const committed = Math.min(stockBefore, required);
+  def.decoysLeft = stockBefore - committed;
+  const evaded = committed > 0 && rand() < decoyEvadeChance(stockBefore, required);
+  const stockedOut = def.decoysLeft <= 0 && stockBefore > 0;
   if (evaded) {
-    const used = Math.min(stockBefore, required);
-    def.decoysLeft = stockBefore - used;
     att.missilesEvaded++;
-    defEvents.push(stockBefore >= required
+    defEvents.push(committed >= required
       ? `${kind} evaded: ${required} decoy(s) pulled the seeker (${def.decoysLeft} left)`
-      : `${kind} evaded on partial barrage (${stockBefore}/${required} decoys fired, stock dry)`);
+      : `${kind} evaded on partial barrage (${committed}/${required} decoys fired, ${def.decoysLeft} left)`);
+    if (stockedOut) defEvents.push('Decoy stock exhausted — future impacts are unopposed');
     return;
   }
-  if (stockBefore > 0) {
-    def.decoysLeft = 0;
-    defEvents.push(stockBefore >= required
-      ? `${kind} slipped through ${required} decoy(s) (pilot fumble, ${def.decoysLeft} left)`
-      : `${kind} punched through ${stockBefore}/${required} decoys (stock dry)`);
-  } else {
-    defEvents.push(`${kind} impacts: no countermeasures on target`);
-  }
+  defEvents.push(committed <= 0
+    ? `${kind} impacts: no countermeasures on target`
+    : committed >= required
+      ? `${kind} slipped through ${committed} decoy(s) (pilot fumble, ${def.decoysLeft} left)`
+      : `${kind} punched through ${committed}/${required} decoys (${def.decoysLeft} left)`);
+  if (stockedOut) defEvents.push('Decoy stock exhausted — future impacts are unopposed');
 
   att.missilesHit++;
-  const gate = deflectionFor(def.ship, 'physical');
-  if (isDeflectedByGate(m.perShot, gate, def.armor)) {
-    defEvents.push(`${kind} detonates harmlessly against armor (gate ${fmt(gate)})`);
-    return;
-  }
   const dmg = m.perShot * variance;
-  const split = shieldSplitFor(def.ship, PHYSICAL_MIX);
-  const applied = applyHit(def, dmg * split.shield, dmg * split.structure, round, defEvents);
+  const mix = quantum ? DISTORTION_MIX : PHYSICAL_MIX;
+  const split = shieldSplitFor(def.ship, mix);
+  const applied = applyHit(def, dmg * split.shield, scaleMix(mix, dmg * split.structure), mix, round, defEvents);
   att.totalDamageDealt += applied;
-  att.damageByType.physical += applied;
-  defEvents.push(`${kind} impact: ${fmt(dmg)} blast, ${Math.round((1 - split.shield) * 100)}% bleeds past shields`);
+  att.damageByType[quantum ? 'distortion' : 'physical'] += applied;
+  defEvents.push(split.structure > 0
+    ? `${kind} impact: ${fmt(dmg)} blast, ${Math.round(split.structure * 100)}% bleeds past shields`
+    : `${kind} impact: ${fmt(dmg)} blast fully absorbed by shields (grinds the pool)`);
 }
 
 export function simulate(a: ShipConfig, b: ShipConfig, seed: number): BattleResult {
@@ -182,10 +246,11 @@ export function simulate(a: ShipConfig, b: ShipConfig, seed: number): BattleResu
     const va = 1 + (rand() * 2 - 1) * VARIANCE;
     const vb = 1 + (rand() * 2 - 1) * VARIANCE;
 
-    // Deflection gate (hard): weapons with per-shot damage below the defender's armor
-    // deflection for their damage type deal no damage while the defender has armor.
-    const atkA = gatedLoadout(a, stateB.ship, stateB.armor, statsA.dpsScale);
-    const atkB = gatedLoadout(b, stateA.ship, stateA.armor, statsB.dpsScale);
+    // Deflection gate (hard, integrity-scaled): weapons with per-shot damage at or below
+    // the defender's effective gate (deflection × armor/armorMax) for their damage type
+    // deal no damage while the defender has armor; the gate lifts as the armor pool depletes.
+    const atkA = gatedLoadout(a, stateB.ship, stateB.armor, statsA.dpsScale, stateA.ammoLeft);
+    const atkB = gatedLoadout(b, stateA.ship, stateA.armor, statsB.dpsScale, stateB.ammoLeft);
     const splitAB = shieldSplitFor(b.ship, atkA.mix); // A attacks B
     const splitBA = shieldSplitFor(a.ship, atkB.mix); // B attacks A
     const incomingA = atkA.dps * va * ROUND_SECONDS;
@@ -209,14 +274,16 @@ export function simulate(a: ShipConfig, b: ShipConfig, seed: number): BattleResu
     const eventsA: string[] = [];
     const eventsB: string[] = [];
 
-    const deflectNote = (atk: GatedAttack, gateHost: ShipData): string | null => {
+    const deflectNote = (atk: GatedAttack, gateHost: ShipData, armorRatio: number): string | null => {
       if (atk.deflected.length === 0) return null;
       const list = atk.deflected.map((d) => (d.count > 1 ? `${d.name}×${d.count}` : d.name)).join(', ');
-      return `Armor deflects ${list} (gate ${fmt(deflectionFor(gateHost, 'physical'))}P / ${fmt(deflectionFor(gateHost, 'energy'))}E)`;
+      return `Armor deflects ${list} (effective gate ${fmt(effectiveGate(deflectionFor(gateHost, 'physical'), armorRatio))}P / ${fmt(effectiveGate(deflectionFor(gateHost, 'energy'), armorRatio))}E at ${Math.round(armorRatio * 100)}% armor)`;
     };
-    const noteB = deflectNote(atkA, b.ship); // A's shots deflected by B's armor
+    const ratioB = armorRatioOf(b.ship.armor, stateB.armor);
+    const ratioA = armorRatioOf(a.ship.armor, stateA.armor);
+    const noteB = deflectNote(atkA, b.ship, ratioB); // A's shots deflected by B's armor
     if (noteB) eventsB.push(noteB);
-    const noteA = deflectNote(atkB, a.ship); // B's shots deflected by A's armor
+    const noteA = deflectNote(atkB, a.ship, ratioA); // B's shots deflected by A's armor
     if (noteA) eventsA.push(noteA);
 
     // Shield regen first (only if powered & active).
@@ -228,6 +295,12 @@ export function simulate(a: ShipConfig, b: ShipConfig, seed: number): BattleResu
     missilePhase(stateA, stateB, va, round, eventsA, eventsB, rand);
     missilePhase(stateB, stateA, vb, round, eventsB, eventsA, rand);
 
+    // Guns spend this round's burst on the weapons that actually fired (deflected shots
+    // left the barrel); weapons firing their last magazine report the depletion here and
+    // go silent from next round. Unpowered/dry weapons consume nothing (Finding 2).
+    depleteGuns(stateA, round, eventsA, atkA.firedIndices);
+    depleteGuns(stateB, round, eventsB, atkB.firedIndices);
+
     const dealtByA = incomingA;
     const dealtByB = incomingB;
     stateA.totalDamageDealt += dealtByA;
@@ -237,8 +310,8 @@ export function simulate(a: ShipConfig, b: ShipConfig, seed: number): BattleResu
       stateB.damageByType[t] += dealtByB * atkB.mix[t];
     }
 
-    applyHit(stateB, dealtByA * splitAB.shield, dealtByA * splitAB.structure, round, eventsB);
-    applyHit(stateA, dealtByB * splitBA.shield, dealtByB * splitBA.structure, round, eventsA);
+    applyHit(stateB, dealtByA * splitAB.shield, scaleMix(atkA.mix, dealtByA * splitAB.structure), atkA.mix, round, eventsB);
+    applyHit(stateA, dealtByB * splitBA.shield, scaleMix(atkB.mix, dealtByB * splitBA.structure), atkB.mix, round, eventsA);
 
     // End-of-round shield bookkeeping.
     if (!stateA.shieldActive) {
@@ -301,6 +374,7 @@ export function simulate(a: ShipConfig, b: ShipConfig, seed: number): BattleResu
     missilesHit: state.missilesHit,
     shieldDownRounds: state.shieldDownRounds,
     firstShieldBreakRound: state.shieldBrokenAtRound,
+    gunsDryRounds: state.gunsDry,
     hullPctAtEnd: Math.max(0, state.hull) / state.hullMax,
     derived,
   });

@@ -100,9 +100,9 @@ input, select {
   background: #0d1119; border: 1px solid var(--border);
   transition: background 0.15s, box-shadow 0.15s, transform 0.05s, border-color 0.15s;
 }
-.power-block:hover { border-color: var(--side-a); }
-.power-block:active { transform: translateY(1px); }
-.power-block:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+button.power-block:hover { border-color: var(--side-a); }
+button.power-block:active { transform: translateY(1px); }
+button.power-block:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
 .power-blocks.weapons .power-block.filled {
   background: linear-gradient(180deg, #6fd6ff, #2f8fbf); border-color: #6fd6ff;
   box-shadow: 0 0 6px rgba(111, 214, 255, 0.5);
@@ -111,6 +111,48 @@ input, select {
   background: linear-gradient(180deg, #7fe0a6, #2f9e63); border-color: #55d98d;
   box-shadow: 0 0 6px rgba(85, 217, 141, 0.45);
 }
+/* Systems blocks are read-only (locked at minOnline): spans, default cursor, no
+   hover/press affordance; steel-blue fill consistent with the dark theme. */
+.power-blocks.systems .power-block { cursor: default; }
+.power-blocks.systems .power-block.filled {
+  background: linear-gradient(180deg, #a9bed6, #5f7f9d); border-color: #9db6cf;
+  box-shadow: 0 0 6px rgba(157, 182, 207, 0.4);
+}
+
+/* Component power model UI (plan-power-components T21): Output display, sections, rows. */
+.output-display {
+  display: flex; flex-direction: column; gap: 4px; width: fit-content;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 16px; margin-bottom: 10px;
+}
+.output-value { font-size: 1.8rem; font-weight: 800; line-height: 1.1; color: var(--green); font-variant-numeric: tabular-nums; }
+.output-value.net-neg { color: #ff7a63; }
+.output-max { display: flex; align-items: baseline; gap: 6px; }
+.output-max b { font-size: 1rem; color: var(--text); font-variant-numeric: tabular-nums; }
+.output-max span { font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.12em; }
+.net-chip { border: 1px solid var(--border); border-radius: 10px; padding: 0 8px; color: var(--green); background: #0d1119; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.net-chip.net-neg { color: #ff7a63; border-color: var(--side-b); background: rgba(240, 100, 76, 0.12); font-weight: 700; }
+.net-chip.net-pos { color: var(--green); }
+
+.loadout-section { margin: 12px 0; }
+.loadout-section h4 { margin: 0 0 6px; font-size: 0.8rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid var(--border); padding-bottom: 3px; }
+.gun-draw-note { color: var(--text-dim); font-size: 0.78rem; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.pdc-row { font-size: 0.85rem; }
+.pdc-row input[type="checkbox"] { accent-color: var(--gold); margin-right: 4px; }
+.comp-list { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.comp-row { display: flex; justify-content: space-between; gap: 10px; font-size: 0.78rem; color: var(--text-dim); background: #0f1626; border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; }
+.comp-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.comp-detail { flex: none; font-variant-numeric: tabular-nums; }
+.comp-sg { color: var(--gold); font-style: normal; font-size: 0.72rem; }
+.no-sim-tag { color: var(--text-dim); font-size: 0.7rem; opacity: 0.85; font-style: normal; }
+
+.combatant .power-state { font-size: 0.72rem; color: var(--text-dim); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.combatant .power-state.overdraw { color: #ff7a63; font-weight: 700; }
+.overdraw-warn { color: #ff7a63; }
+
+.power-legend { margin-top: 10px; font-size: 0.75rem; color: var(--text-dim); text-align: center; }
+.summary-row .net-chip { font-size: 0.72rem; }
+.summary-row.power-row.overdraw > span { color: #ff7a63; }
 
 .readouts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 12px; margin-top: 8px; font-size: 0.85rem; }
 .readouts > div { display: flex; justify-content: space-between; gap: 6px; }
@@ -181,6 +223,146 @@ input, select {
   12% { opacity: 1; }
   88% { opacity: 1; }
   100% { transform: translateX(-46cqw); opacity: 0; }
+}
+
+/* Armor gate deflection: bullets strike the target edge and ricochet off at an angle. */
+.projectile.ab.ricochet { animation-name: flyRightRicochet; }
+.projectile.ab.ricochet.down { animation-name: flyRightRicochetDown; }
+.projectile.ba.ricochet { animation-name: flyLeftRicochet; }
+.projectile.ba.ricochet.down { animation-name: flyLeftRicochetDown; }
+@keyframes flyRightRicochet {
+  0% { transform: translateX(0) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  60% { transform: translateX(46cqw) rotate(0deg); opacity: 1; }
+  67% { transform: translateX(44.4cqw) rotate(16deg); opacity: 1; }
+  100% { transform: translateX(39cqw) translateY(-12cqw) rotate(40deg); opacity: 0; }
+}
+@keyframes flyRightRicochetDown {
+  0% { transform: translateX(0) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  60% { transform: translateX(46cqw) rotate(0deg); opacity: 1; }
+  67% { transform: translateX(44.4cqw) rotate(-16deg); opacity: 1; }
+  100% { transform: translateX(39cqw) translateY(12cqw) rotate(-40deg); opacity: 0; }
+}
+@keyframes flyLeftRicochet {
+  0% { transform: translateX(0) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  60% { transform: translateX(-46cqw) rotate(0deg); opacity: 1; }
+  67% { transform: translateX(-44.4cqw) rotate(-16deg); opacity: 1; }
+  100% { transform: translateX(-39cqw) translateY(-12cqw) rotate(-40deg); opacity: 0; }
+}
+@keyframes flyLeftRicochetDown {
+  0% { transform: translateX(0) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  60% { transform: translateX(-46cqw) rotate(0deg); opacity: 1; }
+  67% { transform: translateX(-44.4cqw) rotate(16deg); opacity: 1; }
+  100% { transform: translateX(-39cqw) translateY(12cqw) rotate(40deg); opacity: 0; }
+}
+
+/* Spark burst at the impact point of a deflected salvo (gold, timed to the ricochet). */
+.spark { position: absolute; width: 30px; height: 30px; transform: translate(0, -50%); opacity: 0; z-index: 5; }
+.spark.ab { left: 71%; }
+.spark.ba { left: 29%; }
+.spark::before, .spark::after { content: ""; position: absolute; inset: 0; }
+.spark::before {
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffffff 0%, #ffe9a8 32%, rgba(242, 193, 78, 0) 68%);
+}
+.spark::after {
+  inset: -6px;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 240, 190, 0) 0deg 28deg, rgba(255, 236, 170, 0.9) 28deg 31deg);
+  animation: sparkSpin 0.42s ease-out both;
+  animation-delay: inherit;
+  animation-duration: inherit;
+}
+.spark { animation: sparkBurst 0.42s ease-out both; }
+.spark.m-hit { width: 52px; height: 52px; }
+.spark.m-hit::before { background: radial-gradient(circle, #ffffff 0%, #ffcf7d 26%, #ff7a3c 50%, rgba(255, 80, 30, 0) 70%); }
+@keyframes sparkBurst {
+  0% { opacity: 0; scale: 0.25; }
+  16% { opacity: 1; }
+  100% { opacity: 0; scale: 1.55; }
+}
+@keyframes sparkSpin {
+  from { transform: rotate(0deg) scale(0.35); opacity: 1; }
+  to { transform: rotate(80deg) scale(1.25); opacity: 0; }
+}
+
+/* Missile/torpedo salvo: shared warhead + exhaust trail, scaled by size class (--mscale). */
+.projectile.missile {
+  width: calc(13px * var(--mscale)); height: calc(13px * var(--mscale));
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffffff 0 26%, currentColor 26% 60%, rgba(255, 255, 255, 0) 60%);
+}
+.projectile.missile.ab { top: 33%; left: 25.5%; color: var(--side-a); box-shadow: 0 0 12px var(--side-a); }
+.projectile.missile.ba { top: 63%; left: 73%; color: var(--side-b); box-shadow: 0 0 12px var(--side-b); }
+.projectile.missile.ab::before {
+  content: ""; position: absolute; top: 50%; right: 82%;
+  width: calc(46px * var(--mscale)); height: calc(5px * var(--mscale));
+  transform: translateY(-50%); border-radius: 3px;
+  background: linear-gradient(270deg, rgba(255, 220, 150, 0.95), rgba(255, 150, 80, 0.4) 45%, transparent);
+}
+.projectile.missile.ba::before {
+  content: ""; position: absolute; top: 50%; left: 82%;
+  width: calc(46px * var(--mscale)); height: calc(5px * var(--mscale));
+  transform: translateY(-50%); border-radius: 3px;
+  background: linear-gradient(90deg, rgba(255, 220, 150, 0.95), rgba(255, 150, 80, 0.4) 45%, transparent);
+}
+.projectile.missile.ab { animation-name: flyRightMissile; }
+.projectile.missile.ba { animation-name: flyLeftMissile; }
+.projectile.missile.ab.m-evaded { animation-name: flyRightMissileEvaded; }
+.projectile.missile.ba.m-evaded { animation-name: flyLeftMissileEvaded; }
+@keyframes flyRightMissile {
+  0% { transform: translateX(0) translateY(0); opacity: 0; }
+  8% { opacity: 1; }
+  30% { transform: translateX(14cqw) translateY(-1.6cqw); }
+  55% { transform: translateX(26cqw) translateY(1.2cqw); }
+  78% { transform: translateX(46cqw) translateY(0); opacity: 1; }
+  88% { transform: translateX(46cqw) scale(1.25); opacity: 1; }
+  100% { transform: translateX(46cqw) scale(0.35); opacity: 0; }
+}
+@keyframes flyLeftMissile {
+  0% { transform: translateX(0) translateY(0); opacity: 0; }
+  8% { opacity: 1; }
+  30% { transform: translateX(-14cqw) translateY(-1.6cqw); }
+  55% { transform: translateX(-26cqw) translateY(1.2cqw); }
+  78% { transform: translateX(-46cqw) translateY(0); opacity: 1; }
+  88% { transform: translateX(-46cqw) scale(1.25); opacity: 1; }
+  100% { transform: translateX(-46cqw) scale(0.35); opacity: 0; }
+}
+@keyframes flyRightMissileEvaded {
+  0% { transform: translateX(0) translateY(0) rotate(0deg); opacity: 0; }
+  8% { opacity: 1; }
+  40% { transform: translateX(20cqw) translateY(-1.8cqw) rotate(-4deg); }
+  58% { transform: translateX(38cqw) translateY(1.4cqw) rotate(6deg); }
+  70% { transform: translateX(44cqw) translateY(-1cqw) rotate(-14deg); opacity: 1; }
+  100% { transform: translateX(56cqw) translateY(-11cqw) rotate(-26deg); opacity: 0; }
+}
+@keyframes flyLeftMissileEvaded {
+  0% { transform: translateX(0) translateY(0) rotate(0deg); opacity: 0; }
+  8% { opacity: 1; }
+  40% { transform: translateX(-20cqw) translateY(-1.8cqw) rotate(4deg); }
+  58% { transform: translateX(-38cqw) translateY(1.4cqw) rotate(-6deg); }
+  70% { transform: translateX(-44cqw) translateY(-1cqw) rotate(14deg); opacity: 1; }
+  100% { transform: translateX(-56cqw) translateY(-11cqw) rotate(26deg); opacity: 0; }
+}
+/* Decoy flare: gold starburst at the defender that drags the seeker off. */
+.flare { position: absolute; width: 26px; height: 26px; transform: translate(0, -50%); opacity: 0; z-index: 5; }
+.flare.ab { left: 71.5%; }
+.flare.ba { left: 27%; }
+.flare::before {
+  content: ""; position: absolute; inset: 0; border-radius: 50%;
+  background: radial-gradient(circle, #fff6d8 0%, var(--gold) 35%, rgba(242, 193, 78, 0) 70%);
+}
+.flare::after {
+  content: ""; position: absolute; inset: -8px;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 244, 200, 0) 0deg 24deg, rgba(242, 193, 78, 0.85) 24deg 27deg);
+}
+.flare { animation: flarePulse 0.62s ease-out both; }
+@keyframes flarePulse {
+  0% { opacity: 0; scale: 0.3; }
+  18% { opacity: 1; }
+  100% { opacity: 0; scale: 1.5; rotate: 35deg; }
 }
 
 .shatter-fx {

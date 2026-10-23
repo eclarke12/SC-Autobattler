@@ -15,6 +15,33 @@ export interface Weapon {
    *  0 = unknown per-shot damage → never deflected. */
   alpha: number;
   power: number;
+  /** Ammunition load in shots (W4). `null` = infinite: energy lasers draw ship power, and
+   *  alpha-0 guns (unknown fire rate) never deplete. Ballistic guns get a size-class
+   *  heuristic from `GUN_AMMO_BY_SIZE` (API has no ammo fields, probe GC2). */
+  ammo: number | null;
+}
+
+/** Per-resource pip band: `minOnline` = lowest pip count that keeps the
+ *  component online, `fullDraw` = draw at full allocation (pips). Nested per
+ *  resource (power/coolant) so a future heat model slots in without renaming (T17). */
+export interface ShipResourceRange {
+  minOnline: number;
+  fullDraw: number;
+}
+
+/** One equipped item on a ship (ports-tree traversal order). Power fields come from
+ *  the item cache join (plan-power-components T17/T18); `coolant` is reserved for
+ *  the future heat model, `generation` carries PowerPlant/Cooler output. */
+export interface ShipComponent {
+  type: string;
+  name: string;
+  className: string;
+  size: number | null;
+  grade: number | null;
+  /** null = component has no power draw data. */
+  power: ShipResourceRange | null;
+  coolant: ShipResourceRange | null;
+  generation: { power: number | null; coolant: number | null };
 }
 
 export interface ShipData {
@@ -28,9 +55,12 @@ export interface ShipData {
   image: string;
   health: number;
   armor: number;
-  /** Per-shot damage thresholds: attacks from weapons with alpha below the defender's
+  /** Per-shot damage thresholds: attacks from weapons with alpha at or below the defender's
    *  deflection for that damage type deal no damage while the defender has armor. */
   armorDeflection: Record<DamageType, number>;
+  /** Per-damage-type armor damage multipliers (armor.damage_multipliers, ~0.65–1.0):
+   *  armor HP is consumed at dmg × mult; the structural hull takes raw damage. */
+  armorMultipliers: Record<DamageType, number>;
   shield: {
     hp: number;
     regenPerSec: number;
@@ -50,16 +80,34 @@ export interface ShipData {
     size: number;
     /** Total warload (1 missile fired per round until dry; torpedoes every 2). */
     ammo: number;
-    /** Explosion damage per missile (physical; bleeds through shields). */
+    /** Explosion damage per missile (bleeds through shields). */
     perShot: number;
     torpedo: boolean;
+    /** Blast damage type: 'distortion' for quantum racks (Polaris S6 quantum torpedoes),
+     *  else 'physical'. Quantum blasts bypass the armor deflection gate entirely (O1) and
+     *  the distortion armor/shield profile applies. */
+    damageType: DamageType;
   };
   /** Decoy launchers in the hardpoint tree; 0 = no missile defense. */
   countermeasures: { decoys: number };
   powerSegments: number;
   weaponPool: number;
+  /** Σ shield-component `fullDraw` — the ship builder derives it (T18); the W5
+   *  `power_pools.Shield` meaning (pool size + over-pool bonus) is retired. */
   shieldPool: number;
-  powerUsedShields: number;
+  /** Equipped-component records (T18 join). May be absent on un-migrated snapshots —
+   *  engine code must treat missing as `[]` (legacy degradation). */
+  components?: ShipComponent[];
+  /** Aggregate fixed-gun draw = API `used_segments_grouped.WeaponGun` (fractional),
+   *  joined by the builder (T18); manned-turret/PDC draw rides in the weapons pool
+   *  via `gunDrawFull`. */
+  gunDraw?: number;
+  /** Σ shield-component `minOnline` — the ship's shield power floor (0 = no shield
+   *  data); enforced by the UI slider bounds, NOT by the engine. */
+  shieldMin?: number;
+  /** Count of PDC turret ports; PDC draw (`pdcCount × TURRET_POWER_PIPS`) enters
+   *  the weapons pool while the PDC toggle is on (declared heuristic, plan T17). */
+  pdcCount?: number;
   crossSection: { length: number; width: number; height: number };
   speed: { scm: number | null; max: number | null };
   mass: number;
@@ -69,8 +117,16 @@ export interface ShipData {
 export interface ShipConfig {
   ship: ShipData;
   mannedTurrets: number;
+  /** Gun pips 0..weaponPool; gun draw scales with the pip fraction. */
   powerToWeapons: number;
+  /** Shield pips; legal UI range is shieldMin..shieldPool, 0 = shields off
+   *  (the engine enforces no floor). */
   powerToShields: number;
+  /** Allocated pips per `ship.components[]` index (0..fullDraw). Missing =
+   *  every component at its minOnline. */
+  allocs?: number[];
+  /** PDC on/off: on draws `pdcCount × TURRET_POWER_PIPS` into the weapons pool. */
+  pdcOn?: boolean;
 }
 
 export interface BattleConfig {
@@ -81,7 +137,6 @@ export interface DerivedStats {
   fixedDps: number;
   turretDps: number;
   weaponDps: number;
-  powerDemand: number;
   dpsScale: number;
   shieldRegen: number;
   /** DPS-weighted share of each damage type in the attacker's output. */
@@ -127,6 +182,8 @@ export interface SideSummary {
   missilesHit: number;
   shieldDownRounds: number;
   firstShieldBreakRound: number | null;
+  /** Number of weapons whose ammunition ran dry (W4). */
+  gunsDryRounds: number;
   hullPctAtEnd: number;
   derived: DerivedStats;
 }
