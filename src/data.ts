@@ -3,8 +3,11 @@ import { z } from 'zod';
 import { DAMAGE_TYPES } from './engine/types';
 import type { ShipData } from './engine/types';
 
-// SYNC OBLIGATION: mirror of src/engine/types.ts ShipData (no optional fields there, so
-// nothing is .optional() here) and of shipSchema in scripts/build-data.mjs — update all three together.
+// SYNC OBLIGATION: mirror of src/engine/types.ts ShipData and of shipSchema in
+// scripts/build-data.mjs — update all three together. Committed-snapshot fields validate
+// as required (data/code skew must fail loudly); a genuinely NEW field is `.optional()`
+// here and on ShipData so an un-regenerated ships.json keeps booting (UI degrades —
+// T23 turretMounts convention).
 const damageTypeSchema = z.enum(DAMAGE_TYPES);
 const rangeSchema = z.object({ min: z.number(), max: z.number() });
 const resourceRangeSchema = z.object({ minOnline: z.number().nonnegative(), fullDraw: z.number().nonnegative() });
@@ -52,6 +55,21 @@ const shipSnapshotSchema = z.array(z.object({
     ammo: z.number().int().positive().nullable(),
   })).min(1),
   turretCount: z.number().int().nonnegative(),
+  // T23 per-mount weapons. `.optional()` (new-field convention): a ships.json
+  // snapshot built before this field keeps validating, and the UI degrades to the
+  // plain guns-pool rows; the builder always emits it (required on that side).
+  turretMounts: z.array(z.object({
+    mount: z.string(),
+    className: z.string().min(1),
+    kind: z.enum(['manned', 'remote', 'pdc']),
+    weapons: z.array(z.object({
+      name: z.string().min(1),
+      size: z.number().int().nullable(),
+      dps: z.number().nonnegative(),
+      alpha: z.number().nonnegative(),
+      count: z.number().int().positive(),
+    })).min(1),
+  })).optional(),
   emission: z.object({ ir: z.number().nonnegative() }),
   missiles: z.object({
     size: z.number().nonnegative(),

@@ -2,6 +2,7 @@ import { MAX_ROUNDS, ROUND_SECONDS, TORPEDO_FIRE_EVERY_ROUNDS, VARIANCE } from '
 import { armorRatioOf, decoyEvadeChance, decoyStockFor, deflectionFor, derivedStats, effectiveGate, gatedLoadout, gunAmmoInfo, requiredDecoysFor, shieldSplitFor } from './derived';
 import type { GatedAttack } from './derived';
 import { mulberry32 } from './rng';
+import { shieldStrengthFactor } from './power';
 import type {
   BattleResult,
   BattleSummary,
@@ -42,12 +43,19 @@ interface CombatState {
   gunsDry: number;
 }
 
-function initState(ship: ShipData): CombatState {
+/** Initial state. `shieldFactor` = the per-Shield on/off strength factor (declared
+ *  heuristic, power.ts `shieldStrengthFactor`): the API has one ship-level shield
+ *  pool, so an offline generator takes its fullDraw share of `shield.hp`/`shieldMax`
+ *  with it — factor 0 (all generators off) starts the battle shields-down, and
+ *  `applyHit` routes every hit straight onto structure from round 1. Default 1 =
+ *  untouched pool (the only callers passing < 1 are the per-Shield-toggle configs). */
+function initState(ship: ShipData, shieldFactor = 1): CombatState {
   const ammo = ship.weapons.map((w) => gunAmmoInfo(w, ROUND_SECONDS));
+  const shield = ship.shield.hp * shieldFactor;
   return {
     ship,
-    shield: ship.shield.hp,
-    shieldMax: ship.shield.hp,
+    shield,
+    shieldMax: shield,
     armor: ship.armor,
     hull: ship.health,
     hullMax: ship.health,
@@ -236,8 +244,8 @@ export function simulate(a: ShipConfig, b: ShipConfig, seed: number): BattleResu
   const rand = mulberry32(seed);
   const statsA = derivedStats(a);
   const statsB = derivedStats(b);
-  const stateA = initState(a.ship);
-  const stateB = initState(b.ship);
+  const stateA = initState(a.ship, shieldStrengthFactor(a.ship, a.shieldOns));
+  const stateB = initState(b.ship, shieldStrengthFactor(b.ship, b.shieldOns));
 
   const rounds: Round[] = [];
   let winner: 'a' | 'b' | 'draw' | null = null;

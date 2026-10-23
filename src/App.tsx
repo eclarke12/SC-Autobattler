@@ -6,8 +6,11 @@ import {
   defaultAllocation,
   fullDrawOf,
   isOverdrawn,
+  isShieldComponent,
   isSystemComponent,
   netPower,
+  shieldCapOn,
+  shieldFloorOn,
 } from './engine';
 import { ShipPicker } from './components/ShipPicker';
 import { LoadoutPanel } from './components/LoadoutPanel';
@@ -33,20 +36,39 @@ function fillAllocs(ship: ShipData, alloc: number[] | undefined): number[] {
   );
 }
 
+/** Index-parallel to `ship.components[]`: Shield entries default to ON (missing knob
+ *  = all shields on, per-Shield on/off 2026-10-23); non-Shield entries are true
+ *  (ignored by the engine). */
+function fillShieldOns(ship: ShipData, shieldOns: boolean[] | undefined): boolean[] {
+  return (ship.components ?? []).map((c, i) => (isShieldComponent(c) ? (shieldOns?.[i] ?? true) : true));
+}
+
 /** Trust-boundary normalization (plan Decisions: shared-link knobs clamp here,
  *  components add their own defensive caps). Knobs absent from a link fill from
  *  `defaultAllocation(ship)` (T20 opening state: ladder defaults, PDC on), so
  *  legacy links without aw/as/bw/bs/at/bt open at the confirmed opening state,
- *  never guns-off/shields-off. Present knobs decode unchanged (clamped). */
-function normalizeKnobs(ship: ShipData, knobs: SideKnobs): SideKnobs {
+ *  never guns-off/shields-off. Present knobs decode unchanged (clamped).
+ *  Shield pips (per-Shield on/off 2026-10-23): `shieldOns` fills components-parallel
+ *  (missing = all on) and the shield pips clamp to **[ON-set floor, ON-set cap]** —
+ *  the same window the slider block-picker enforces. The floor bound matters on
+ *  toggle transitions: generators toggled OFF drive cap (and `s`) to 0; toggling one
+ *  back ON raises the floor, and without the floor bound `s = 0` would survive as a
+ *  sub-floor allocation (generator "ON" billing 0 pips — below minOnline is offline
+ *  per Comm-Link 20263, and the all-off case is shields-down). Floor is 0 exactly
+ *  when every generator is off, so shields-off stays reachable. */
+export function normalizeKnobs(ship: ShipData, knobs: SideKnobs): SideKnobs {
   const d = defaultAllocation(ship);
+  const shieldOns = fillShieldOns(ship, knobs.shieldOns);
+  const cap = shieldCapOn(ship, shieldOns);
+  const floor = shieldFloorOn(ship, shieldOns);
   return {
     uuid: ship.uuid,
     turrets: clampTurrets(knobs.turrets ?? ship.turretCount, ship),
     w: clamp(knobs.w ?? d.gunPips, 0, ship.weaponPool),
-    s: clamp(knobs.s ?? d.shieldPips, 0, ship.shieldPool),
+    s: clamp(knobs.s ?? Math.min(d.shieldPips, cap), floor, cap),
     alloc: fillAllocs(ship, knobs.alloc),
     pdcOn: typeof knobs.pdcOn === 'boolean' ? knobs.pdcOn : true,
+    shieldOns,
   };
 }
 
@@ -66,13 +88,17 @@ function toConfig(side: SideSetup): ShipConfig | null {
   if (!side.ship) return null;
   const ship = side.ship;
   const d = defaultAllocation(ship);
+  const shieldOns = fillShieldOns(ship, side.knobs.shieldOns);
+  const cap = shieldCapOn(ship, shieldOns);
+  const floor = shieldFloorOn(ship, shieldOns);
   return {
     ship,
     mannedTurrets: clampTurrets(side.knobs.turrets ?? ship.turretCount, ship),
     powerToWeapons: clamp(side.knobs.w ?? d.gunPips, 0, ship.weaponPool),
-    powerToShields: clamp(side.knobs.s ?? d.shieldPips, 0, ship.shieldPool),
+    powerToShields: clamp(side.knobs.s ?? Math.min(d.shieldPips, cap), floor, cap),
     allocs: fillAllocs(ship, side.knobs.alloc),
     pdcOn: typeof side.knobs.pdcOn === 'boolean' ? side.knobs.pdcOn : true,
+    shieldOns,
   };
 }
 

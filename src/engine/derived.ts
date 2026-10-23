@@ -6,7 +6,7 @@ import {
   TORPEDO_CM_EFFICIENCY,
   TURRET_POWER_PIPS,
 } from './constants';
-import { fullDrawOf, isSystemComponent, netPower, systemReserve } from './power';
+import { fullDrawOf, gunCostAt, gunDrawFull, isShieldComponent, isSystemComponent, minOnlineOf, netPower, pipCost, shieldCapOn, shieldOnsOf, shieldStrengthFactor, systemReserve } from './power';
 import { DAMAGE_TYPES } from './types';
 import type { DamageType, DerivedStats, ShipConfig, ShipData, Weapon } from './types';
 
@@ -27,10 +27,18 @@ export function derivedStats(config: ShipConfig): DerivedStats {
     : (fixedDps + turretDps > 0 ? 0 : 1);
   const weaponDps = (fixedDps + turretDps) * dpsScale;
 
-  // Shield regen = the allocated-pip fraction of the shield pool (plan T19;
-  // the over-pool bonus model is retired). 0 pips = shields off = no regen.
-  const shieldRegen = ship.shieldPool > 0
-    ? ship.shield.regenPerSec * Math.min(1, powerToShields / ship.shieldPool)
+  // Shield regen = the allocated-pip fraction of the shield cap (plan T19; the
+  // over-pool bonus model retired) × the per-Shield on/off strength factor
+  // (declared heuristic 2026-10-23 — shieldStrengthFactor in power.ts).
+  // 0 pips = shields off = no regen; an off generator drops the cap AND scales
+  // the regen down by its fullDraw share, so s = cap(ON) reads the ON set's
+  // regen, not double-counted against the all-shield pool. Ships with NO Shield
+  // components (legacy snapshots, no per-generator data) keep the original
+  // allocated/shieldPool formula (cap 0 → pool denominator, factor 1).
+  const shieldCap = shieldCapOn(ship, config.shieldOns);
+  const regenDenom = shieldCap > 0 ? shieldCap : ship.shieldPool;
+  const shieldRegen = ship.shieldPool > 0 && regenDenom > 0
+    ? ship.shield.regenPerSec * Math.min(1, powerToShields / regenDenom) * shieldStrengthFactor(ship, config.shieldOns)
     : 0;
 
   const mix: Record<DamageType, number> = {
@@ -223,8 +231,8 @@ export function powerNotes(config: ShipConfig): PowerNote[] {
   const components = (ship.components ?? []).filter(isSystemComponent); // RULE-R: reserve = systems only
   if (components.length > 0) {
     const reserve = systemReserve(ship, config.allocs);
-    const capacity = components.reduce((s, c) => s + fullDrawOf(c), 0);
-    notes.push({ kind: 'systems-reserve', pips: reserve, text: `systems draw ${fmtPip(reserve)} of ${fmtPip(capacity)} pips` });
+    const capacity = components.reduce((s, c) => s + pipCost(fullDrawOf(c)), 0);
+    notes.push({ kind: 'systems-reserve', pips: reserve, text: `systems draw ${fmtPip(reserve)} of ${fmtPip(capacity)} pips (whole-pip billing)` });
   }
   const pdcPips = (ship.pdcCount ?? 0) * TURRET_POWER_PIPS;
   if (pdcOn && pdcPips > 0) {
@@ -234,17 +242,21 @@ export function powerNotes(config: ShipConfig): PowerNote[] {
     notes.push({
       kind: 'under-powered-guns',
       pips: Math.max(0, ship.weaponPool - powerToWeapons),
-      text: `guns at ${(d.dpsScale * 100).toFixed(0)}% power (${powerToWeapons}/${ship.weaponPool} pips) — DPS cut to ${(d.dpsScale * 100).toFixed(0)}%`,
+      text: `guns at ${(d.dpsScale * 100).toFixed(0)}% power (${powerToWeapons}/${ship.weaponPool} pips, drawing ${fmtPip(gunCostAt(ship, powerToWeapons, pdcOn))} of ${fmtPip(pipCost(gunDrawFull(ship, pdcOn)))} billed) — DPS cut to ${(d.dpsScale * 100).toFixed(0)}%`,
     });
   }
-  const shieldMin = ship.shieldMin ?? 0;
+  const shieldOns = shieldOnsOf(ship, config.shieldOns);
+  const shieldCap = shieldCapOn(ship, config.shieldOns);
+  // Raw ON-set Σ minOnline — the ON-set floor (per-Shield toggles 2026-10-23); an
+  // off generator drops out of the floor, so the floor note follows the ON set.
+  const shieldFloorRaw = (ship.components ?? []).reduce((s, c, i) => s + (isShieldComponent(c) && shieldOns[i] ? minOnlineOf(c) : 0), 0);
   if (powerToShields <= 0) {
     notes.push({ kind: 'shields-off', pips: 0, text: 'shields off: no regeneration' });
-  } else if (shieldMin > 0 && shieldMin < ship.shieldPool && powerToShields <= shieldMin) {
+  } else if (shieldFloorRaw > 0 && shieldFloorRaw < shieldCap && powerToShields <= shieldFloorRaw) {
     notes.push({
       kind: 'shields-at-floor',
-      pips: shieldMin,
-      text: `shields at floor (${shieldMin} pips): regen ${(100 * Math.min(1, powerToShields / ship.shieldPool)).toFixed(0)}%`,
+      pips: pipCost(shieldFloorRaw),
+      text: `shields at floor (${fmtPip(pipCost(shieldFloorRaw))} pips): regen ${(100 * (d.shieldRegen / Math.max(1e-9, ship.shield.regenPerSec))).toFixed(0)}%`,
     });
   }
   const net = netPower(ship, config);

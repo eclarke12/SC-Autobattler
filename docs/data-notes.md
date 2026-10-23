@@ -202,17 +202,189 @@ allocs value), and the fleet numbers below are computed with it unpowered — th
 - Free power (`powerSegments − Σ defaultAllocOf`, i.e. powered-system minOnline):
   **min 6, p25 9, p50 12, p90 19, max 57** — every ship has ≥ 6 free pips, so the model is
   far healthier than the retired W5 grouped-sum baseline (95% saturation).
-- Default ladder (`defaultAllocation`: powered systems at minOnline, QDrive/jump at 0, PDC
-  on, shields max, guns full; on overdraw guns→0, then shields→floor; systems never forced
+- Default ladder (`defaultAllocation`: powered systems at their billed minOnline (see
+  round-up addendum below), QDrive/jump at 0, PDC
+  on, shields at the ALL-ON floor, guns at the MINIMUM powered pips (see below); on
+  overdraw PDC→off, then guns→0; shields STAY at the floor; systems never forced
   below minOnline):
-  - raw defaults (shields max + guns full) net < 0 on **44/228** ships (was 101);
-  - guns→0, shields max clears all but **8/228** (net ≥ 0 on 220; was 206);
-  - full ladder (then shields→floor) clears all but **4/228** (was 7) — these stay red
-    (Fight disabled) because even guns-0 + shields-floor + systems-at-defaults exceeds
+  - **Shields/guns opening (2026-10-23):** shield pips open at the floor
+    `shieldFloorOn` (Σ pipCost(minOnline), all generators ON — boost headroom left
+    to the user); gun pips open at `minGunPipsFull` = the fewest pips whose billed
+    cost equals `pipCost(gunDrawFull(…, true))` (full gun draw, fewest pips).
+    Sample ships at the new defaults: 600i 8 shield / 8 gun pips (net 0), Gladius
+    2/4 (net +5), Hammerhead 4/10 (net +7), Avenger Stalker 2/4 (net +2). The
+    planning example guessed "600i: 8 shields / 2 guns" — the snapshot's 600i
+    aggregate `gunDraw` is 8 pips at an 8-pip pool, so the honest minimum powered
+    figure is **8 gun pips**, not 2 (no per-gun power data to go lower, T17 gap).
+  - opening net ≥ 0 on **224/228** ships — the opening (guns full-cost + PDC-on)
+    matches the old ladder's end state in cost terms, so the counts stand:
+  - PDC-off rung, then guns→0 clears the last ships whose floor fits; full ladder
+    clears all but **4/228** (unchanged) — these stay red
+    (Fight disabled) because even guns-0 + PDC-off + shields-floor +
+    systems-at-defaults exceeds
     their APU: Ironclad (−1), Ironclad Assault (−1), Prowler Utility Wikelo Work Special
     (−3), MISC Hull B (−2). Caterpillar, Caterpillar Pirate and Zeus Mk II ES Wikelo Work
-    Special cleared once the QDrive draw was freed.
+    Special cleared once the QDrive draw was freed. **Escape hatch (per-shield on/off,
+    2026-10-23):** the ladder floors at the ALL-ON floor, so these 4 are red only
+    at defaults — switching a shield generator OFF frees its `minOnline` (4 pips per
+    Stronghold on the Ironclads, 3 per Citadel on the Prowler/MISC) and sliding the
+    shield pips down to the reduced ON-set floor clears the overdraw (Ironclad −1 → +3,
+    Prowler WWS −3 → 0 net); see the per-shield toggle section below.
+
+**Per-shield generator on/off (2026-10-23).** Every shield generator is individually
+toggleable (`ShipConfig.shieldOns`, index-parallel to `components[]`; all on =
+default). The shield slider floor derives from the **ON set** — floor = Σ
+`pipCost(minOnline)` over ON generators — and the cap follows the **boost ladder**
+(2026-10-23): with every generator ON the cap is Σ `pipCost(fullDraw)` (full boost
+headroom); with **any generator OFF the cap collapses to the floor** — partial
+boost is not modeled, so pips above the reduced floor are unreachable and the
+LoadoutPanel shows a "boost locked" note (`shieldFloorOn`/`shieldCapOn` in
+`engine/power.ts`). With every generator OFF the floor and cap are 0: **any ship
+can run zero shields** (the old "Stronghold ships can never drop shields to 0"
+slider note is retired). Fleet facts
+(228-ship snapshot): **157 ships carry ≥2 shield components** (117×2, 22×3, 16×4,
+2×6; 71×1). Example — Carrack: 2× Barbican `minOnline` 4 / `fullDraw` 5 →
+all-on floor 8 = 2×4, cap 10; one OFF → floor 4, cap 4 (locked).
+
+**Online validation** (RSI Ship Owner's Guide, Comm-Link 20263 via
+`api.star-citizen.wiki/api/comm-links/20263`): "Each power-consuming component has
+properties for **minimum and maximum power units**" with dedicated per-component
+power throttles ("most components are managed through dedicated power throttles"),
+and high-minOnline components "require a significant amount of power just to
+activate" — below `minOnline` the generator is offline and contributes no shield;
+with all generators offline the ship has no shields and structure is exposed
+(star-citizen.wiki page fetches 404; RSI/Spectrum network-blocked — the Comm-Link
+via the wiki API is the primary source, same as the RULE-R citations above).
+
+**Declared sim heuristic:** the API exposes ONE ship-level shield pool
+(`shield.hp`/`regenPerSec`, single faceType) with no per-generator hp split, so the
+sim scales the pool by `shieldStrengthFactor = shieldFullDrawOn / Σ pipCost(fullDraw
+ALL)` — the **fullDraw** ON-sum, deliberately NOT `shieldCapOn`, so the boost
+ladder's cap collapse never rescales pool strength (one of two equal
+generators OFF → 0.5; all OFF → 0 → the battle starts shields-down and damage hits
+structure from round 1). Ship-level absorption (`shieldSplitFor`) is not scaled — no
+per-face data exists. The RULE-R fleet numbers above are untouched: the new
+`defaultAllocation` opens at the all-ON floor (not max), and the ladder floors
+there for every ship, so the 224-clear / 4-red shape and the free min 6/p50 12
+figures stand — re-verified by the fleet tests after the defaults change.
+
+**Round-up pip billing (2026-10-23 addendum):** in Star Citizen, power is allocated in
+**whole discrete segments** while the API reports **fractional usage** — RSI Ship Owner's
+Guide "Components, Power, Signatures" (official Comm-Link 20263, retrieved via
+`api.star-citizen.wiki/api/comm-links/20263`): "Power is allocated in segments to
+components, which consume these universal units based on their demands" and "Some
+components have a minimum power consumption that **displays as combined power
+segments**" (the 0.1-minOnline BEHR gatling occupies 1 segment). Data facts in our
+snapshot: the only fractional `minOnline`/`fullDraw` fields in `components-cache.json`
+are 11 **WeaponGun** fields (0.1, 0.25, 1.13, 1.4, 2.1, 2.93, 4.8) — weapons ride the
+guns pool, so no system `minOnline` is fractional; `gunDraw` is fractional on
+**147/228** ships; `generation_segments` (supply) is integer on all 228. The engine
+therefore bills every pip cost through `pipCost = Math.ceil` (`engine/power.ts`):
+system allocations (minOnline and per-alloc), shield pips, and the grouped gun draw at
+full power and at the pip fraction (declared heuristic — per-gun data unavailable,
+T17). Impact on the RULE-R fleet numbers above: **none** — `ceil` adds < 1 pip, nets
+were already integers, and Σ`pipCost(gunDraw)` raises full-power gun cost by only 77.0
+pips fleet-wide (spread over fractional-gun ships), all absorbed by the guns→0 ladder
+rung: free min 6/p50 12, 44 raw-over, 220 guns-0, 224 ladder, same 4 red ships with
+identical nets, verified post-change by the fleet-shape tests.
 
 Golden battles are unaffected: the test harness `fullConfig` sets `powerToWeapons = weaponPool`
 (dpsScale 1.0) and `powerToShields = shieldPool` (regen fraction 1.0) with `allocs: []`
 (systems at 0), bypassing the default ladder and the Fight gate.
+
+## T23 per-mount weapons (`turretMounts`) (2026-10-23)
+
+The Guns list shows Turret/TurretBase components by **mount** name only (e.g. "Turret:
+VariPuck S3 Gimbal Mount", "TurretBase: Manned Turret"). `turretMounts` adds the real
+weapons per mount hardpoint (display-only; power still rides in the aggregate guns pool).
+
+**Live API shape (probed 2026-10-23):** all three `turrets` arrays share one entry shape —
+`{ category, display_name, hardpoint_name, part_name, turret_type, class_name, size,
+mount_count, weapon_sizes, payload_*, mounts, dps_total, sustained_dps_total, alpha_total,
+is_pilot_slaveable, weapons[] {uuid, class_name, name, link, web_url, dps, sustained_dps,
+alpha, is_pilot_slaveable}, version }`. Weapon entries carry the **gun name** (Hammerhead
+manned: 4× "CF-447 Rhino Repeater"; Javelin: 2× "M9A Cannon"; Idris PDC: "M2C \"Swarm\"";
+Reclaimer remote: 2× "CF-337 Panther Repeater"). `display_name` is a machine label
+("port_NameTurret04", "PDT 1"), `part_name` the hardpoint name — no human mount label
+exists, so `mount` is kept for tooltips and the UI heading stays the component name.
+**Join key:** the turret entry's `class_name` equals the ports-tree Turret/TurretBase
+component `className` (exact string match; 175/191 fleet-wide manned entries join;
+non-joins = null-`class_name` entries (Idris tail turret, Javelin upper turrets) and
+Valkyrie door guns).
+
+**Emitted field (T23):** `turretMounts: { mount, className, kind: 'manned'|'remote'|'pdc',
+weapons: string[] }[]` — entries with null `class_name` or zero weapons (empty mounts,
+Reclaimer salvage arms) are dropped; `weapons` are name-deduped with ×N counts
+("CF-447 Rhino Repeater ×4"). Builder zod requires the field (always emitted, `[]` when
+nothing joins); data.ts validates it `.optional()` (new-field convention: un-regenerated
+snapshots boot, UI degrades to plain rows). `weapons[]`/`turretCount` mapping unchanged.
+
+**Deviation from plan (declared):** the plan mapped `turrets.manned` only, but the
+user-facing example ships (Avenger line — "VariPuck S3 Gimbal Mount", turretCount 0) have
+**all three turret arrays empty**: their gimbal-mount guns exist only as
+`weaponry.fixed_weapons` entries, and the API exposes **no mapping from a fixed gun to a
+specific mount hardpoint** (the ports tree carries no child weapon under the Turret port;
+probe 2026-10-23) — unjoinable, recorded gap. Extending to `remote` + `pdc` covers the
+ships where per-mount data exists at all (37 remote + 14 PDC ships).
+
+**UI fallback for the gap (T25, 2026-10-23, declared heuristic):** the Avenger-line/600i
+class now lists their fixed guns on the gimbal-mount rows via
+`fixedGunPairings` (`src/components/turretMounts.ts`, UI layer, no ships.json change):
+after the multiset join consumes its matches, the remaining `ship.weapons[]`
+`type === 'fixed'` entries (names already rendered on a matched mount excluded — no
+double-listing) pair to the unmatched Turret-family rows in component order — 1:1 by
+list order when counts match, round-robin with ×N aggregation (dps summed, alpha shown
+once) when guns outnumber mounts, first-G-only when mounts outnumber guns. The API
+**still has no per-mount gun truth** for these hardpoints — the pairing is list-order
+assumption, declared in the row tooltips. 600i: 3× "M7A Cannon" on the 3 VariPuck S5
+gimbals (its 2 remote-turret rows keep the T23 join).
+
+**UI join (LoadoutPanel):** multiset pairing by `className` — the k-th Turret-family
+component (types `Turret`, `TurretBase`, `UtilityTurret`) with className K takes the k-th
+turretMounts entry of className K (mount classes repeat: 3× "Mount_Gimbal_S3", 11×
+"Turret_PDC_BEHR_A"); no match → current "guns pool" detail kept. Verified 1:1 multiset
+alignment on Hammerhead (6/6), Javelin (7 mounts ↔ 7 TurretBase components of 13 API
+entries — the 6 null-`class_name` entries drop), Idris-M (7 manned + 11 PDC), Reclaimer
+(1 manned + 6 remote + 7 PDC).
+
+**Fleet stats (228-ship snapshot, post-join):** 69 ships carry `turretMounts`, 274 entries
+(manned 133 / remote 72 / pdc 69); 55 ships have `turretCount > 0`.
+
+## T24 per-weapon stats (`turretMounts.weapons` enrichment) (2026-10-23)
+
+T23 emitted `weapons: string[]` (name ×N). T24 promotes each weapon to an **object** so
+the UI can show a real per-weapon line under a mount:
+`weapons: { name, size: number|null, dps, alpha, count }[]`. `dps` is the **sum** across
+the repeated hardpoint entries, `alpha` is the **max** per-gun alpha, `count` is the
+deduped repeat count (Hammerhead Rhino: `dps 3271.6 = 817.9×4`, `count 4`, `alpha 65.4`).
+
+**Size source (probed 2026-10-23):** the turret entry's `weapon_sizes` is an integer array
+aligned 1:1 to the raw `weapons[]` (positional join; nameless entries are skipped **without
+shifting** the size index). Fallback is a trailing `\bS(\d{1,2})\b` name token; otherwise
+`size: null`. Fleet-wide **all 276 mount weapons resolve a non-null size** (0 nulls) after
+the positional join — the name-token fallback alone leaves gaps, so the positional
+`weapon_sizes` join is load-bearing.
+
+**Schema mirrors (3-way sync):** builder `shipSchema` requires the enriched objects;
+`data.ts` keeps `turretMounts` `.optional()` (new-field convention — un-regenerated
+snapshots boot and the UI degrades); `engine/types.ts` adds `TurretMountWeapon`. `npm run
+build:data` re-run and verified. The Avenger-line VariPuck mounts stay `[]` (no
+gun→mount mapping in the API — the T23 gap above stands; the T25 UI fallback now lists
+the ships' fixed guns on those rows by order pairing).
+
+## Review fixes 2026-10-23 (quick review of the T23–T25 + per-Shield work)
+
+- **Shared missile-size source** — the per-rack warhead classifier (API naming
+  conventions) + the torpedo threshold (size ≥ 5) now live in ONE module,
+  `src/engine/missile-size.mjs` (`missileSizeFor`, `MISSILE_TORPEDO_MIN_SIZE`), imported
+  by `scripts/build-data.mjs` (ship-level `missiles.size` + `torpedo` flag) and the
+  LoadoutPanel rack sub-lines. The T24 UI-layer regex mirror is retired: the displayed
+  missile/torpedo class can no longer drift from the simulated flag. `.mjs` so plain
+  node (the builder) can import it; `tsconfig allowJs` added.
+- **Shield floor bound at the App trust boundary** — `normalizeKnobs`/`toConfig` clamp
+  shield pips to **[ON-set floor, ON-set cap]**, not `[0, cap]`. Reachable hole fixed:
+  toggling every generator OFF drives cap (and `s`) to 0; toggling one back ON raised
+  the floor while `s = 0` survived as a legal sub-floor allocation (generator "ON"
+  billing 0 pips — below minOnline is offline per Comm-Link 20263; the all-off case is
+  shields-down). Floor is 0 exactly when all generators are off, so shields-off stays
+  reachable. Test: `engine.test.ts` "per-Shield floor at the App trust boundary".

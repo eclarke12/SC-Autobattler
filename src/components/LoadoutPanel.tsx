@@ -15,26 +15,80 @@ import {
   fmtPip,
   fullDrawOf,
   gatedLoadout,
+  gunCostAt,
   gunDrawFull,
   isSystemComponent,
+  missileSizeFor,
+  MISSILE_TORPEDO_MIN_SIZE,
   minOnlineOf,
+  pipCost,
   powerNotes,
   requiredDecoysFor,
+  shieldCapOn,
+  shieldFloorOn,
+  shieldOnsOf,
   shieldSplitFor,
+  shieldStrengthFactor,
 } from '../engine';
 import type { ShipComponent, ShipConfig, ShipData } from '../engine/types';
 import type { SideKnobs } from '../url';
 import { ComponentBlocks, ComponentRow, PowerBlocks } from './PowerBlocks';
+import { fixedGunPairings, turretMountMatcher } from './turretMounts';
 
-/** Per-side loadout editor (plan-power-components T21). Star Citizen power-tab-style
- *  **Output** display directly under the ship name: big live available number
+/** T24 rack aggregation key: rack model name with the loadout tokens stripped
+ *  ("12xS3", "Quad S5", "Quad", "S4") so identical racks group into "xN" lines
+ *  (e.g. 4× "MSD-543 Missile Rack" → "MSD-543 Missile Rack ×4"). */
+function missileRackBase(name: string): string {
+  return name
+    .replace(/\d+\s*x\s*S\d+/gi, ' ')
+    .replace(/\bQuad\s+S\d+\b/gi, ' ')
+    .replace(/\bQuad\b/gi, ' ')
+    .replace(/\bS\d+\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+interface RackGroup {
+  base: string;
+  size: number;
+  count: number;
+  firstIndex: number;
+}
+
+/** Group the ship's MissileLauncher rack components by (base name, warhead size);
+ *  the group renders as ONE aggregated sub-line under its first rack row. The
+ *  warhead size comes from the shared single source `missileSizeFor`
+ *  (src/engine/missile-size.mjs) — the SAME classifier scripts/build-data.mjs uses
+ *  for the ship-level `missiles.size` + torpedo flag, so the rack sub-line's
+ *  missile/torpedo label can never drift from the simulated behaviour. */
+function missileRackGroups(entries: { c: ShipComponent; i: number }[]): Map<number, RackGroup> {
+  const groups = new Map<string, RackGroup>();
+  for (const { c, i } of entries) {
+    if ((c.type ?? '') !== 'MissileLauncher') continue;
+    const size = missileSizeFor({ className: c.className, name: c.name, size: c.size });
+    const key = `${missileRackBase(c.name ?? '')}|${size}`;
+    const g = groups.get(key);
+    if (g) g.count += 1;
+    else groups.set(key, { base: missileRackBase(c.name ?? ''), size, count: 1, firstIndex: i });
+  }
+  const byFirst = new Map<number, RackGroup>();
+  for (const g of groups.values()) byFirst.set(g.firstIndex, g);
+  return byFirst;
+}
+
+/** Per-side loadout editor (plan-power-components T21). Section order: overall-stats
+ *  readouts grid directly under the ship name, then the Star Citizen power-tab-style
+ *  **Output** display: big live available number
  *  (net = pips − allocated, red when overdrawn) over the total PowerPlant
  *  generation marked **MAX** (PowerPlants are the generation source — no allocatable
- *  Power section). Sections: Guns (pip slider + PDC toggle + read-only
- *  weapon-component list), Shields (floor-bounded blocks), Systems (read-only locked
+  *  Power section). Sections: Guns (pip slider + PDC toggle + read-only
+ *  weapon-component list), Shields (ON-set floor-bounded blocks + per-generator
+ *  on/off checkboxes — an OFF generator frees its minOnline pips and its share of
+ *  shield strength; all OFF = shields fully off), Systems (read-only locked
  *  power blocks via `isSystemComponent` — each system sits at its minOnline default;
  *  the engine `defaultAllocation` is the only allocation source; QuantumDrive/jump
- *  rows show unpowered 0/max). Non-combat allocations are budget accounting only
+ *  rows show unpowered 0/max). The `.power-notes` lists stay at the bottom.
+ *  Non-combat allocations are budget accounting only
  *  (no simulated effect) — every system row carries the "Locked to min. power" tag,
  *  with the full explanation in the title tooltip. */
 export function LoadoutPanel({ config, opponent, onChange, onPdcToggle }: {
@@ -64,14 +118,32 @@ export function LoadoutPanel({ config, opponent, onChange, onPdcToggle }: {
   const allocs = config.allocs ?? components.map(defaultAllocOf);
   const gunDraw = gunDrawFull(ship, pdcOn);
   const gunFrac = ship.weaponPool > 0 ? Math.min(1, Math.max(0, config.powerToWeapons / ship.weaponPool)) : 0;
-  const gunDrawNow = gunDraw * gunFrac;
+  const gunDrawNow = gunCostAt(ship, config.powerToWeapons, pdcOn);
+  const gunDrawFullCost = gunDraw > 0 ? pipCost(gunDraw) : 0;
   const allocated = allocatedPower(ship, allocs, config.powerToWeapons, config.powerToShields, pdcOn);
   const available = ship.powerSegments - allocated;
   const generation = components.reduce((s, c) => s + (c.generation?.power ?? 0), 0);
   const maxOutput = generation > 0 ? generation : ship.powerSegments;
-  const shieldMin = ship.shieldMin ?? 0;
-  const shieldFrac = ship.shieldPool > 0 ? Math.min(1, config.powerToShields / ship.shieldPool) : 0;
+  // Per-Shield on/off (2026-10-23): the floor is Σ pipCost(minOnline) over the ON
+  // generators; the slider CAP follows the boost-ladder rule (power.ts shieldCapOn):
+  // all generators ON ⇒ full pool (Σ fullDraw) + boost room, ANY generator OFF ⇒ cap
+  // = the ON-set floor (boost locked). Strength scales by the ON-set fullDraw share.
+  // All-off → floor 0, cap 0, factor 0.
+  const shieldOns = shieldOnsOf(ship, config.shieldOns);
+  const shieldFloorOnV = shieldFloorOn(ship, config.shieldOns);
+  const shieldCapOnV = shieldCapOn(ship, config.shieldOns);
+  const shieldFactor = shieldStrengthFactor(ship, config.shieldOns);
+  const shieldsAllOff = shieldCapOnV === 0 && components.some((c) => (c.type ?? '') === 'Shield');
+  const shieldsAnyOff = components.some((c, i) => (c.type ?? '') === 'Shield' && !shieldOns[i]);
+  // ON-set regen fraction: allocated pips / ON cap, scaled by the strength factor —
+  // the readout shows the ON generators' actual regen share of the all-on pool.
+  const shieldFrac = shieldCapOnV > 0 ? Math.min(1, Math.max(0, config.powerToShields / shieldCapOnV)) * shieldFactor : 0;
   const crewCap = crewTurretCap(ship);
+
+  // Per-Shield toggle (PDC-row pattern): flips one generator's on/off; App's
+  // normalizeKnobs re-clamps the shield pips into the reduced ON-set cap.
+  const toggleShield = (i: number, on: boolean) =>
+    set({ shieldOns: shieldOns.map((v, j) => (j === i ? on : v)) });
 
   const indexed = components.map((c, i) => ({ c, i }));
   const systemComps = indexed.filter(({ c }) => isSystemComponent(c));
@@ -80,6 +152,10 @@ export function LoadoutPanel({ config, opponent, onChange, onPdcToggle }: {
   // read-only under the Shields blocks.
   const weaponComps = indexed.filter(({ c }) => WEAPONS_POOL_COMPONENT_TYPES.has(c.type ?? ''));
   const shieldComps = indexed.filter(({ c }) => (c.type ?? '') === 'Shield');
+  // T23 join + T25 fixed-gun fallback in one pass (the matcher is stateful — driven
+  // exactly once per Turret-family component, in component order).
+  const gunPair = fixedGunPairings(ship, weaponComps, turretMountMatcher(ship));
+  const missileGroups = missileRackGroups(weaponComps);
 
   const sizeGrade = (c: ShipComponent) => `${c.size != null ? `S${c.size}` : ''}${c.grade != null ? ` G${c.grade}` : ''}`;
   const rangeText = (c: ShipComponent) => `${fmtPip(minOnlineOf(c))}–${fmtPip(fullDrawOf(c))}`;
@@ -91,116 +167,14 @@ export function LoadoutPanel({ config, opponent, onChange, onPdcToggle }: {
     <div className="loadout">
       <h3>Loadout — {ship.name}</h3>
 
-      <section className="loadout-section output">
-        <h4>Output</h4>
-        <div
-          className="output-display"
-          aria-label={`Available power ${fmtPip(available)} pips · maximum ${fmtPip(maxOutput)} from power plant generation`}
-          title={`Available = ${ship.powerSegments} APU pips − allocated (systems + shield pips + gun draw at the current pip fraction) · MAX = total PowerPlant generation · APU budget: ${ship.powerSegments} pips · negative available (overdraw) disables Fight`}
-        >
-          <div className={`output-value${available < 0 ? ' net-neg' : ''}`} aria-label={`Available power ${fmtPip(available)} pips`}>{fmtPip(available)}</div>
-          <div className="output-max" aria-label={`Maximum power output ${fmtPip(maxOutput)} pips`}><b>{fmtPip(maxOutput)}</b><span>MAX</span></div>
-        </div>
-      </section>
-
-      {ship.turretCount > 0 && (
-        <label className="knob">
-          <span>
-            Manned turrets <b>{config.mannedTurrets}/{ship.turretCount}</b>
-            {crewCap < ship.turretCount && <em title="Every manned turret needs a gunner; the pilot seat is not a turret post"> — game-legal max: {crewCap} (crew {ship.crew.max})</em>}
-          </span>
-          <input
-            type="range" min={0} max={ship.turretCount} value={config.mannedTurrets}
-            onChange={(e) => set({ turrets: Number(e.target.value) })}
-          />
-        </label>
-      )}
-
-      <section className="loadout-section guns">
-        <h4>Guns</h4>
-        <PowerBlocks
-          kind="weapons"
-          label={<>Power to guns <b>{config.powerToWeapons}/{ship.weaponPool}</b> pips — draw {fmtPip(gunDrawNow)} of {fmtPip(gunDraw)} pips{gunFrac < 1 && <span title="Gun draw scales with the pip fraction; DPS is cut to the same fraction"> ({Math.round(gunFrac * 100)}%)</span>}</>}
-          value={config.powerToWeapons}
-          min={0}
-          max={ship.weaponPool}
-          onChange={(v) => set({ w: v })}
-        />
-        <div className="gun-draw-note" title="Aggregate gun draw = API grouped fixed-gun usage + manned turrets + PDCs while the toggle is on (declared heuristic: the API exposes no per-weapon/turret power)">
-          guns draw {fmtPip(gunDraw)} pips at full power{pdcCount > 0 ? (pdcOn ? ` (incl. PDC ${fmtPip(pdcCount * TURRET_POWER_PIPS)})` : ' (PDC off)') : ''}
-        </div>
-        {pdcCount > 0 && (
-          <label className="pdc-row knob" title={`PDC draw is a declared heuristic: ${pdcCount} × ${TURRET_POWER_PIPS} pip${pdcCount * TURRET_POWER_PIPS === 1 ? '' : 's'} (the API has no per-PDC power). Turning PDCs off frees the pips for other systems.`}>
-            <span>
-              <input type="checkbox" checked={pdcOn} onChange={(e) => onPdcToggle(e.target.checked)} />
-              {' '}PDC × {pdcCount} — draws {fmtPip(pdcCount * TURRET_POWER_PIPS)} pips into the weapons pool when on
-            </span>
-          </label>
-        )}
-        {weaponComps.length > 0 && (
-          <div className="comp-list">
-            {weaponComps.map(({ c, i }) => (
-              <ComponentRow
-                key={i}
-                label={typeLabel(c)}
-                detail={c.power ? `${rangeText(c)} pips` : `${c.type} · guns pool`}
-                title="Weapon-category component — power rides in the aggregate guns pool (no per-weapon power in the API); not individually allocatable"
-              />
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="loadout-section shields">
-        <h4>Shields</h4>
-        <PowerBlocks
-          kind="shields"
-          label={<>Shields <b>{config.powerToShields}/{ship.shieldPool}</b> pips — regen {Math.round(shieldFrac * 100)}%{shieldMin > 0 && <span title="Shield floor = Σ shield minOnline — shields can never be set below this"> · floor {shieldMin}</span>}</>}
-          value={config.powerToShields}
-          min={shieldMin}
-          max={ship.shieldPool}
-          onChange={(v) => set({ s: v })}
-        />
-        {shieldComps.length > 0 && (
-          <div className="comp-list">
-            {shieldComps.map(({ c, i }) => (
-              <ComponentRow
-                key={i}
-                label={typeLabel(c)}
-                detail={c.power ? `${rangeText(c)} pips · shield slider` : `${c.type} · shield slider`}
-                title="Shield component — the shield slider models it (floor = Σ shield minOnline, cap = Σ shield fullDraw); not individually allocatable"
-              />
-            ))}
-          </div>
-        )}
-      </section>
-
-      {systemComps.length > 0 && (
-        <section className="loadout-section systems">
-          <h4>Systems</h4>
-          {systemComps.map(({ c, i }) => (
-            <ComponentBlocks
-              key={i}
-              label={typeLabel(c)}
-              value={allocs[i] ?? defaultAllocOf(c)}
-              max={fullDrawOf(c)}
-              detail={c.type === 'QuantumDrive'
-                ? <span className="no-sim-tag" title={`Quantum Drive / Jump Drive (incl. jump modules) ship unpowered: the app simulates the SCF/NAV (non-quantum) power state. ${minOnlineOf(c)} minOnline–fullDraw ${fullDrawOf(c)} pips. Allocation is budget accounting only.`}>Unpowered (non-quantum power state) · {rangeText(c)}</span>
-                : <span className="no-sim-tag" title={`Locked at minOnline (${minOnlineOf(c)} of ${fullDrawOf(c)} pips). ${minOnlineOf(c)} minOnline–fullDraw ${fullDrawOf(c)} pips. Allocation is budget accounting only — the app simulates no radar/cooling/flight effects.`}>Locked to min. power · {rangeText(c)}</span>}
-              title={c.type === 'QuantumDrive'
-                ? `Unpowered (0 of ${fullDrawOf(c)} pips): Quantum Drive / Jump Drive (incl. jump modules) are off because the app simulates the SCF/NAV (non-quantum) power state. ${minOnlineOf(c)} minOnline–fullDraw ${fullDrawOf(c)} pips. Allocation is budget accounting only.`
-                : `Locked at minOnline (${minOnlineOf(c)} of ${fullDrawOf(c)} pips). ${minOnlineOf(c)} minOnline–fullDraw ${fullDrawOf(c)} pips. Allocation is budget accounting only — the app simulates no radar/cooling/flight effects.`}
-            />
-          ))}
-        </section>
-      )}
-
       <div className="readouts">
         <div><span>Weapon DPS</span><b>{fmtInt(derived.weaponDps)}</b></div>
         <div><span>— fixed</span><b>{fmtInt(derived.fixedDps)}</b></div>
         <div><span>— turrets</span><b>{fmtInt(derived.turretDps)}</b></div>
         <div><span>Power scale</span><b>{Math.round(derived.dpsScale * 100)}%</b></div>
-        <div><span>Shield regen</span><b>{fmtInt(derived.shieldRegen)}/s</b></div>
+        <div title={`Shield regen = ${fmtInt(ship.shield.regenPerSec)}/s (API) × the pip fraction of the ON generators' cap × the strength factor (${Math.round(shieldFactor * 100)}% — Σ fullDraw of ON generators / Σ all). An OFF generator drops the cap and takes its share of regen with it.`}>
+          <span>Shield regen</span><b>{fmtInt(derived.shieldRegen)}/s</b>
+        </div>
         <div><span>Shield face</span><b>{ship.shield.faceType}</b></div>
         {split !== null && (
           <div title="Share of your effective DPS the foe's shields absorb; the rest phases through straight onto their armor (hull once armor is gone)">
@@ -241,6 +215,183 @@ export function LoadoutPanel({ config, opponent, onChange, onPdcToggle }: {
           </div>
         )}
       </div>
+
+      <section className="loadout-section output">
+        <h4>Output</h4>
+        <div
+          className="output-display"
+          aria-label={`Available power ${fmtPip(available)} pips · maximum ${fmtPip(maxOutput)} from power plant generation`}
+          title={`Available = ${ship.powerSegments} APU pips − allocated (systems + shield pips + gun draw at the current pip fraction — every cost billed in whole pips, rounded up) · MAX = total PowerPlant generation · APU budget: ${ship.powerSegments} pips · negative available (overdraw) disables Fight`}
+        >
+          <div className={`output-value${available < 0 ? ' net-neg' : ''}`} aria-label={`Available power ${fmtPip(available)} pips`}>{fmtPip(available)}</div>
+          <div className="output-max" aria-label={`Maximum power output ${fmtPip(maxOutput)} pips`}><b>{fmtPip(maxOutput)}</b><span>MAX</span></div>
+        </div>
+      </section>
+
+      {ship.turretCount > 0 && (
+        <label className="knob">
+          <span>
+            Manned turrets <b>{config.mannedTurrets}/{ship.turretCount}</b>
+            {crewCap < ship.turretCount && <em title="Every manned turret needs a gunner; the pilot seat is not a turret post"> — game-legal max: {crewCap} (crew {ship.crew.max})</em>}
+          </span>
+          <input
+            type="range" min={0} max={ship.turretCount} value={config.mannedTurrets}
+            onChange={(e) => set({ turrets: Number(e.target.value) })}
+          />
+        </label>
+      )}
+
+      <section className="loadout-section guns">
+        <h4>Guns</h4>
+        <PowerBlocks
+          kind="weapons"
+          label={<>Power to guns <b>{config.powerToWeapons}/{ship.weaponPool}</b> pips — draw {fmtPip(gunDrawNow)} of {fmtPip(gunDrawFullCost)} pips{gunFrac < 1 && <span title="Gun draw scales with the pip fraction, billed in whole pips (a fractional draw occupies the next segment); DPS is cut to the same fraction"> ({Math.round(gunFrac * 100)}%)</span>}</>}
+          value={config.powerToWeapons}
+          min={0}
+          max={ship.weaponPool}
+          onChange={(v) => set({ w: v })}
+        />
+        <div className="gun-draw-note" title="Aggregate gun draw = API grouped fixed-gun usage + manned turrets + PDCs while the toggle is on (declared heuristic: the API exposes no per-weapon/turret power). Fractional API usage occupies whole pips in-game (RSI Ship Owner's Guide, Comm-Link 20263: power is allocated in segments), so the billed draw is rounded up.">
+          guns draw {fmtPip(gunDrawFullCost)} pips at full power (API usage {fmtPip(gunDraw)} — fractions occupy whole pips){pdcCount > 0 ? (pdcOn ? `, incl. PDC ${fmtPip(pdcCount * TURRET_POWER_PIPS)}` : ', PDC off') : ''}
+        </div>
+        {pdcCount > 0 && (
+          <label className="pdc-row knob" title={`PDC draw is a declared heuristic: ${pdcCount} × ${TURRET_POWER_PIPS} pip${pdcCount * TURRET_POWER_PIPS === 1 ? '' : 's'} (the API has no per-PDC power). Turning PDCs off frees the pips for other systems.`}>
+            <span>
+              <input type="checkbox" checked={pdcOn} onChange={(e) => onPdcToggle(e.target.checked)} />
+              {' '}PDC × {pdcCount} — draws {fmtPip(pdcCount * TURRET_POWER_PIPS)} pips into the weapons pool when on
+            </span>
+          </label>
+        )}
+        {weaponComps.length > 0 && (
+          <div className="comp-list">
+            {weaponComps.map(({ c, i }) => {
+              const mount = gunPair.mounts.get(i) ?? null;
+              const rack = missileGroups.get(i);
+              // T24 indented sub-lines: one per gun model on a joined turret mount
+              // (name deduped with ×N counts, size/dps/alpha from the API), one
+              // aggregated line per missile-rack model group, and the T25 fixed-gun
+              // fallback lines on turret rows the T23 join left empty (order-pairing
+              // heuristic — the API has no gun→mount mapping for these hardpoints).
+              // Display-only — power rides in the aggregate guns pool (no per-weapon
+              // power in the API).
+              const subLines: { label: string; detail: string; title: string }[] = [];
+              if (mount) {
+                for (const w of mount.weapons) {
+                  subLines.push({
+                    label: `${w.size != null ? `S${w.size} ` : ''}${w.name}${w.count > 1 ? ` ×${w.count}` : ''}`,
+                    detail: `alpha ${fmtInt(w.alpha)} / ${fmtInt(w.dps)} dps`,
+                    title: `${w.count} × ${w.name}${w.size != null ? ` (S${w.size})` : ' (size unknown)'} — alpha ${fmtInt(w.alpha)} per shot, ${fmtInt(w.dps)} dps total for the ${w.count} gun${w.count > 1 ? 's' : ''} on this mount (per-gun API values summed; the builder takes the size from the entry-level weapon_sizes array, name-token fallback)`,
+                  });
+                }
+              }
+              for (const g of gunPair.byIndex.get(i) ?? []) {
+                subLines.push({
+                  label: `${g.name}${g.count > 1 ? ` ×${g.count}` : ''}`,
+                  detail: `alpha ${fmtInt(g.alpha)} / ${fmtInt(g.dps)} dps`,
+                  title: g.count > 1
+                    ? `API has no gun→mount mapping for these hardpoints (T23 gap); the ship's ${gunPair.guns} fixed guns were paired to its ${gunPair.mountsTotal} turret-mount rows round-robin by list order (declared heuristic) — ${g.count} × ${g.name} on this row is a count ASSUMPTION of that even distribution, not API truth. alpha ${fmtInt(g.alpha)} per gun (max), dps ${fmtInt(g.dps)} summed across the ${g.count} guns (ship-level weaponry.fixed_weapons entries; no per-gun size in the API, so the hardpoint size shows on the mount row). Display-only: power rides in the aggregate guns pool.`
+                    : `API has no gun→mount mapping for these hardpoints (T23 gap); the ship's ${gunPair.guns} fixed gun${gunPair.guns > 1 ? 's' : ''} were paired to its ${gunPair.mountsTotal} turret-mount row${gunPair.mountsTotal > 1 ? 's' : ''} by list order (declared heuristic). ${g.name}: alpha ${fmtInt(g.alpha)} per shot, ${fmtInt(g.dps)} dps (ship-level weaponry.fixed_weapons entry; no per-gun size in the API, so the hardpoint size shows on the mount row). Display-only: power rides in the aggregate guns pool.`,
+                });
+              }
+              if (rack) {
+                const kind = rack.size >= MISSILE_TORPEDO_MIN_SIZE ? 'torpedo' : 'missile';
+                subLines.push({
+                  label: `${rack.base} ×${rack.count}`,
+                  detail: `${kind} S${rack.size} · ${fmtInt(ship.missiles.perShot)} blast/shot`,
+                  title: `${rack.count} rack${rack.count > 1 ? 's' : ''} of ${rack.base || 'this missile rack'} firing ${kind}s (size ${rack.size >= MISSILE_TORPEDO_MIN_SIZE ? 'at least ' + MISSILE_TORPEDO_MIN_SIZE : 'below ' + MISSILE_TORPEDO_MIN_SIZE} — ${rack.size >= MISSILE_TORPEDO_MIN_SIZE ? 'torpedo' : 'missile'} class, per-rack size from the API naming conventions — shared classifier src/engine/missile-size.mjs, identical to the builder's ship-level torpedo flag). Blast damage is the SHIP-LEVEL API aggregate (${fmtInt(ship.missiles.ammo)} warshots, ${fmtInt(ship.missiles.perShot)} each) — the API exposes no per-rack warhead damage.`,
+                });
+              }
+              const detail = mount
+                ? (
+                  <span
+                    className="mount-weapons"
+                    title={`${mount.mount} (${mount.kind} turret): ${mount.weapons.map((w) => (w.count > 1 ? `${w.name} ×${w.count}` : w.name)).join(', ')} — weapons are display-only: the API exposes no per-weapon/per-turret power, so every turret draws from the aggregate guns pool`}
+                  >
+                    — {mount.weapons.reduce((s, w) => s + w.count, 0)} gun{mount.weapons.reduce((s, w) => s + w.count, 0) === 1 ? '' : 's'} on mount
+                  </span>
+                )
+                : (c.power ? `${rangeText(c)} pips` : `${c.type} · guns pool`);
+              return (
+                <div className="comp-item" key={i}>
+                  <ComponentRow
+                    label={typeLabel(c)}
+                    detail={detail}
+                    title="Weapon-category component — power rides in the aggregate guns pool (no per-weapon power in the API); not individually allocatable"
+                  />
+                  {subLines.length > 0 && (
+                    <div className="comp-sublist">
+                      {subLines.map((s, j) => (
+                        <div className="comp-sub" key={j} title={s.title}>
+                          <span className="comp-sub-label">{s.label}</span>
+                          <span className="comp-sub-detail">{s.detail}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <section className="loadout-section shields">
+        <h4>Shields</h4>
+        <PowerBlocks
+          kind="shields"
+          label={<>Shields <b>{config.powerToShields}/{shieldCapOnV}</b> pips{shieldCapOnV > 0 && <> — regen {Math.round(shieldFrac * 100)}%</>}{(shieldFloorOnV > 0 || shieldFactor < 1) && <span title="Shield floor = Σ minOnline of the ON generators (whole-pip billing) — a generator toggled OFF frees its minOnline pips, so with every generator OFF the floor is 0 (shields can be dropped completely)"> · floor {fmtPip(shieldFloorOnV)}</span>}{shieldFactor < 1 && <span title="Shield strength factor = Σ fullDraw ON / Σ fullDraw ALL (declared heuristic: the API exposes one ship-level shield pool) — an OFF generator takes its share of shield hp and regen with it"> · strength {Math.round(shieldFactor * 100)}%</span>}</>}
+          value={config.powerToShields}
+          min={shieldFloorOnV}
+          max={shieldCapOnV}
+          onChange={(v) => set({ s: v })}
+        />
+        {shieldsAnyOff && !shieldsAllOff && (
+          <div className="gun-draw-note" title="Boost ladder rule (2026-10-23): the whole ship shares ONE shield pool, so pushing pips above the generators' minOnline floor requires every generator online. With a generator OFF each ON generator contributes only its minimum — cap = floor.">
+            Boost locked: re-enable all shield generators to add pips above minimum
+          </div>
+        )}
+        {shieldsAllOff && (
+          <div className="gun-draw-note" title="Every shield generator toggled OFF: the battle starts shields-down — all incoming damage lands on armor and hull from round 1, and there is no regeneration. Switch a generator back ON to restore its share of the pool.">
+            Shields OFF — all damage hits structure
+          </div>
+        )}
+        {shieldComps.length > 0 && (
+          <div className="comp-list">
+            {shieldComps.map(({ c, i }) => (
+              <label
+                key={i}
+                className="pdc-row knob"
+                title={`Shield generator — individually toggleable; OFF frees its minOnline pips (${rangeText(c)} pips) from the shield floor/cap and its share of shield strength (hp & regen). All generators OFF = no shields: all damage hits structure.`}
+              >
+                <span>
+                  <input type="checkbox" checked={shieldOns[i]} onChange={(e) => toggleShield(i, e.target.checked)} />
+                  {' '}{c.type}: {c.name}{sizeGrade(c) && <em className="comp-sg"> {sizeGrade(c)}</em>} — {rangeText(c)} pips{shieldOns[i] ? ' · ON' : ' · OFF'}
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {systemComps.length > 0 && (
+        <section className="loadout-section systems">
+          <h4>Systems</h4>
+          {systemComps.map(({ c, i }) => (
+            <ComponentBlocks
+              key={i}
+              label={typeLabel(c)}
+              value={allocs[i] ?? defaultAllocOf(c)}
+              max={fullDrawOf(c)}
+              detail={c.type === 'QuantumDrive'
+                ? <span className="no-sim-tag" title={`Quantum Drive / Jump Drive (incl. jump modules) ship unpowered: the app simulates the SCF/NAV (non-quantum) power state. ${minOnlineOf(c)} minOnline–fullDraw ${fullDrawOf(c)} pips. Allocation is budget accounting only.`}>Unpowered (non-quantum power state) · {rangeText(c)}</span>
+                : <span className="no-sim-tag" title={`Locked at minOnline (${minOnlineOf(c)} of ${fullDrawOf(c)} pips), billed ${fmtPip(pipCost(minOnlineOf(c)))} whole pips (fractional usage occupies the next segment). ${minOnlineOf(c)} minOnline–fullDraw ${fullDrawOf(c)} pips. Allocation is budget accounting only — the app simulates no radar/cooling/flight effects.`}>Locked to min. power · {rangeText(c)} → {fmtPip(pipCost(minOnlineOf(c)))} pip{pipCost(minOnlineOf(c)) === 1 ? '' : 's'}</span>}
+              title={c.type === 'QuantumDrive'
+                ? `Unpowered (0 of ${fullDrawOf(c)} pips): Quantum Drive / Jump Drive (incl. jump modules) are off because the app simulates the SCF/NAV (non-quantum) power state. ${minOnlineOf(c)} minOnline–fullDraw ${fullDrawOf(c)} pips. Allocation is budget accounting only.`
+                : `Locked at minOnline (${minOnlineOf(c)} of ${fullDrawOf(c)} pips), billed ${fmtPip(pipCost(minOnlineOf(c)))} whole pips (fractional usage occupies the next segment). ${minOnlineOf(c)} minOnline–fullDraw ${fullDrawOf(c)} pips. Allocation is budget accounting only — the app simulates no radar/cooling/flight effects.`}
+            />
+          ))}
+        </section>
+      )}
 
       {opponent && ship.missiles.ammo > 0 && opponent.countermeasures.decoys > 0 && (
         <ul className="power-notes">

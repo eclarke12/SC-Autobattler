@@ -1,8 +1,10 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { GUN_AMMO_BY_SIZE, GUN_AMMO_SIZE_DEFAULT, MISSILE_FUMBLE, TURRET_POWER_PIPS, WEAPONS_POOL_COMPONENT_TYPES, allocatedPower, armorRatioOf, crewTurretCap, decoyEvadeChance, decoyStockFor, defaultAllocOf, defaultAllocation, derivedStats, fullDrawOf, gatedLoadout, gunAmmoInfo, gunDrawFull, isOverdrawn, isPoweredByDefault, isSystemComponent, minOnlineOf, mulberry32, netPower, ordnanceKindLabel, powerNotes, requiredDecoysFor, simulate, systemReserve } from './index';
+import { GUN_AMMO_BY_SIZE, GUN_AMMO_SIZE_DEFAULT, MISSILE_FUMBLE, TURRET_POWER_PIPS, WEAPONS_POOL_COMPONENT_TYPES, allocatedPower, armorRatioOf, crewTurretCap, decoyEvadeChance, decoyStockFor, defaultAllocOf, defaultAllocation, derivedStats, fullDrawOf, gatedLoadout, gunAmmoInfo, gunCostAt, gunDrawFull, isOverdrawn, isPoweredByDefault, isSystemComponent, minGunPipsFull, minOnlineOf, missileSizeFor, MISSILE_TORPEDO_MIN_SIZE, mulberry32, netPower, ordnanceKindLabel, pipCost, powerNotes, requiredDecoysFor, shieldCapOn, shieldFloorOn, shieldOnsOf, shieldStrengthFactor, simulate, systemReserve } from './index';
 import type { ShipComponent, ShipConfig, ShipData } from './types';
 import { DAMAGE_TYPES } from './types';
+import { TURRET_COMPONENT_TYPES, fixedGunPairings, turretMountMatcher } from '../components/turretMounts';
+import { normalizeKnobs } from '../App';
 
 const ships = JSON.parse(readFileSync(new URL('../../data/ships.json', import.meta.url), 'utf8')) as ShipData[];
 
@@ -41,6 +43,7 @@ function syn(name: string, opts: {
   crewMax?: number;
   powerSegments?: number;
   gunDraw?: number;
+  pdcCount?: number;
   components?: ShipComponent[];
   gunAmmo?: number | null;
   turretAmmo?: number | null;
@@ -83,7 +86,7 @@ function syn(name: string, opts: {
     },
     countermeasures: { decoys: opts.decoyLaunchers ?? 0 },
     powerSegments: opts.powerSegments ?? 20, weaponPool: 20, shieldPool: 4,
-    components: opts.components ?? [], gunDraw: opts.gunDraw ?? 0, shieldMin: 0, pdcCount: 0,
+    components: opts.components ?? [], gunDraw: opts.gunDraw ?? 0, shieldMin: 0, pdcCount: opts.pdcCount ?? 0,
     crossSection: { length: 1, width: 1, height: 1 },
     speed: { scm: 200, max: 1000 }, mass: 1000, crew: { min: 1, max: opts.crewMax ?? 1 },
   };
@@ -276,6 +279,53 @@ describe('component power allocation (T19)', () => {
     expect(allocatedPower(legacy, undefined, 20, 4, true)).toBe(0 + 4 + 0); // un-migrated: no draws
   });
 
+  it('pipCost (round-up rule, 2026-10-23): fractional usage bills whole segments', () => {
+    // RSI Ship Owner's Guide (Comm-Link 20263): power is allocated in segments;
+    // 0.1-minOnline BEHR gatling "displays as combined power segments" = 1.
+    expect(pipCost(0)).toBe(0);
+    expect(pipCost(1)).toBe(1);
+    expect(pipCost(2.1)).toBe(3);
+    expect(pipCost(0.1)).toBe(1);
+    expect(pipCost(2.93)).toBe(3);
+    expect(pipCost(4.8)).toBe(5);
+    expect(pipCost(-0.5)).toBe(-0);
+  });
+
+  it('pipCost billing flows into defaultAllocOf, systemReserve (both paths), and powerNotes capacity', () => {
+    // Fractional system draws (synthetic — the real fleet keeps the fractions in
+    // WeaponGun, which rides the guns pool): minOnline 0.1 bills 1, 1.13 bills 2,
+    // 2.1 bills 3; default allocation = pipCost(minOnline).
+    const ship = syn('Frac', {
+      health: 1, armor: 0, shield: 0, regen: 0, fixedDps: 0,
+      components: [comp('Shield', 2, 4), comp('Radar', 1.13, 4.8), comp('Cooler', 0.1, 2)],
+    });
+    expect(defaultAllocOf(comp('Radar', 1.13, 4.8))).toBe(2);
+    expect(defaultAllocOf(comp('Cooler', 0.1, 2))).toBe(1);
+    expect(systemReserve(ship, undefined)).toBe(2 + 1); // legacy path: Σ pipCost(minOnline), Shield excluded
+    expect(systemReserve(ship, [9, 3, 0])).toBe(pipCost(3) + pipCost(0)); // with-array: Σ pipCost(clamp(alloc))
+    expect(systemReserve(ship, [9, 4.8, 2])).toBe(pipCost(4.8) + 2); // clamp first: 4.8 ≤ 4.8 bills 5, 2 ≤ 2 bills 2
+    expect(systemReserve(ship, [0, -1, 0.5])).toBe(pipCost(0) + pipCost(0.5)); // 0 + 1
+    // powerNotes capacity = Σ pipCost(fullDraw) over systems (4.8 → 5, 2 → 2)
+    const notes = powerNotes({ ship, mannedTurrets: 0, powerToWeapons: 0, powerToShields: 0, allocs: [0, 0, 0], pdcOn: true });
+    expect(notes.find((n) => n.kind === 'systems-reserve')?.text).toBe('systems draw 0 of 7 pips (whole-pip billing)');
+  });
+
+  it('pipCost on the guns pool: fractional gunDraw bills ceil at full power and at the pip fraction', () => {
+    // 147/228 real ships carry fractional gunDraw (API used_segments_grouped.WeaponGun).
+    const ship = syn('GunFrac', {
+      health: 1, armor: 0, shield: 0, regen: 0, fixedDps: 0, gunDraw: 2.1,
+      components: [comp('Shield', 2, 4)],
+    });
+    expect(gunDrawFull(ship, true)).toBe(2.1); // RAW usage for display (PDC × 0)
+    expect(gunCostAt(ship, ship.weaponPool, true)).toBe(3); // full power: 2.1 → 3
+    expect(gunCostAt(ship, ship.weaponPool / 2, true)).toBe(Math.ceil(2.1 * 0.5)); // 1.05 → 2
+    expect(gunCostAt(ship, 1, true)).toBe(Math.ceil(2.1 * (1 / ship.weaponPool)));
+    expect(gunCostAt(ship, 0, true)).toBe(0); // guns off frees the pool completely
+    expect(allocatedPower(ship, [], ship.weaponPool, 0, true)).toBe(3);
+    expect(allocatedPower(ship, [], 0, 0, true)).toBe(0);
+    expect(allocatedPower(ship, [], ship.weaponPool, 2, true)).toBe(5);
+  });
+
   it('netPower / isOverdrawn', () => {
     const ship = syn('Net', {
       health: 1, armor: 0, shield: 0, regen: 0, fixedDps: 0, powerSegments: 10, gunDraw: 6,
@@ -289,29 +339,52 @@ describe('component power allocation (T19)', () => {
     expect(isOverdrawn(ship, over)).toBe(true);
   });
 
-  it('defaultAllocation: systems at minOnline (non-system alloc entries 0), guns full, shields max, PDC on', () => {
+  it('defaultAllocation: systems at minOnline, shields at the all-ON FLOOR, guns at the MINIMUM POWERED pips, PDC on', () => {
     const ship = syn('Def', {
       health: 1, armor: 0, shield: 0, regen: 0, fixedDps: 0, gunDraw: 5,
       components: [comp('Shield', 2, 4), comp('Radar', 1, 2), comp('Cooler', 2, 6)],
     });
-    const a = defaultAllocation(ship); // reserve 1+2 = 3 + shields 4 + guns 5 = 12 ≤ 20
+    // reserve 1+2 = 3 + shields floor 2 + guns: full cost ceil(5) = 5, smallest p with
+    // ceil(5·p/20) == 5 is p = 17 → 3 + 2 + 5 = 10 ≤ 20
+    const a = defaultAllocation(ship);
     expect(a.allocs).toEqual([0, 1, 2]); // allocs stay index-parallel to ship.components
     expect(a.pdcOn).toBe(true);
-    expect(a.gunPips).toBe(ship.weaponPool);
-    expect(a.shieldPips).toBe(ship.shieldPool);
-    expect(netPower(ship, toConfig(ship, a))).toBe(20 - 12);
+    expect(a.gunPips).toBe(17); // not the pool: 17 pips power the 5-pip draw fully
+    expect(a.shieldPips).toBe(2); // floor (Σ pipCost minOnline), all generators ON
+    expect(netPower(ship, toConfig(ship, a))).toBe(20 - 10);
   });
 
-  it('overdraw defaults: guns clamp to 0 first; shields drop to floor only if guns 0 is not enough', () => {
+  it('overdraw defaults: ladder drops PDC OFF first, then guns to 0; shields STAY at the floor', () => {
     const ship = syn('Tight', {
-      health: 1, armor: 0, shield: 0, regen: 0, fixedDps: 0, powerSegments: 11, gunDraw: 8,
+      health: 1, armor: 0, shield: 0, regen: 0, fixedDps: 0, powerSegments: 6, gunDraw: 3, pdcCount: 2,
       components: [comp('Shield', 2, 4)],
     });
-    // full: 0 + 4 + 8 = 12 > 11 → guns 0 → 0 + 4 + 0 = 4, net 7: shields stay max
+    // opening 0 + 2 + ceil((3+2)·p/20 at full cost 5 → 5) = 7 > 6 → PDC OFF →
+    // 0 + 2 + ceil(3·17/20) = 5, net 1: guns keep their (redrawn) minimum powered
+    // pips, shields stay at the floor.
     const a = defaultAllocation(ship);
-    expect(a.gunPips).toBe(0);
-    expect(a.shieldPips).toBe(4);
-    expect(netPower(ship, toConfig(ship, a))).toBe(7);
+    expect(a.pdcOn).toBe(false);
+    expect(a.gunPips).toBe(17); // min pips for the full draw at PDC-on (kept after the drop)
+    expect(a.shieldPips).toBe(2);
+    expect(netPower(ship, toConfig(ship, a))).toBe(1);
+    // PDC-off is not enough → guns → 0; shields stay at floor.
+    const tight = { ...ship, powerSegments: 4 } as ShipData;
+    const b = defaultAllocation(tight);
+    expect(b.pdcOn).toBe(false);
+    expect(b.gunPips).toBe(0);
+    expect(b.shieldPips).toBe(2);
+    expect(netPower(tight, toConfig(tight, b))).toBe(2);
+  });
+
+  it('minGunPipsFull: full gun draw at the fewest pips (fractional draws land mid-ladder)', () => {
+    const gunAt = (draw: number, pool: number, pdc = 0) => minGunPipsFull({
+      ...syn('G', { health: 1, armor: 0, shield: 0, regen: 0, fixedDps: 0, gunDraw: draw }), weaponPool: pool, pdcCount: pdc,
+    } as ShipData);
+    expect(gunAt(0, 4)).toBe(0); // zero draw = zero pips
+    expect(gunAt(5, 20)).toBe(17); // ceil(5·p/20) == 5 from p = 17
+    expect(gunAt(2.93, 3)).toBe(3); // 2.93 occupies 3 at any full-power p
+    expect(gunAt(3.1, 8)).toBe(8); // ceil(3.1·p/8) == 4 needs p > 7.74 → pool
+    expect(gunAt(1, 20, 4)).toBe(17); // PDC counts into the full draw (1+4 = 5)
   });
 
   it('residual overdraw: systems are never forced below minOnline — net stays negative for the UI', () => {
@@ -370,6 +443,45 @@ describe('component power allocation (T19)', () => {
     expect(powerNotes({ ship: legacy, mannedTurrets: 0, powerToWeapons: 20, powerToShields: 2, allocs: [], pdcOn: true })).toEqual([]);
   });
 
+  describe('per-Shield floor at the App trust boundary (App.tsx normalizeKnobs)', () => {
+    const twin = () => ({ ...syn('TwinShield', {
+      health: 50000, armor: 0, shield: 2000, regen: 200, fixedDps: 0,
+      components: [comp('Shield', 4, 5), comp('Shield', 4, 5)],
+    }), shieldPool: 10, shieldMin: 8 }) as ShipData;
+
+    it('toggle-off collapses s with the cap; toggle-back-on re-floors s (never a sub-floor 0)', () => {
+      const ship = twin();
+      const on = normalizeKnobs(ship, { uuid: ship.uuid });
+      expect(on.s).toBe(8); // default: all-ON floor (Σ minOnline, whole pips)
+      const off = normalizeKnobs(ship, { uuid: ship.uuid, s: on.s, shieldOns: [false, false] });
+      expect(off.s).toBe(0); // all off → cap 0 → s 0 (shields down)
+      const back = normalizeKnobs(ship, { uuid: ship.uuid, s: off.s, shieldOns: [true, false] });
+      expect(back.s).toBe(4); // ON-set floor restored — the stale sub-floor 0 is clamped up
+      expect(back.s).toBeGreaterThanOrEqual(shieldFloorOn(ship, back.shieldOns));
+    });
+
+    it('overpool links re-fit the reduced cap; all-off links stay at 0', () => {
+      const ship = twin();
+      expect(normalizeKnobs(ship, { uuid: ship.uuid, s: 10, shieldOns: [true, false] }).s).toBe(4);
+      expect(normalizeKnobs(ship, { uuid: ship.uuid, s: 10, shieldOns: [false, false] }).s).toBe(0);
+    });
+  });
+
+  describe('shared missile-size source (scripts/build-data.mjs == UI classifier, src/engine/missile-size.mjs)', () => {
+    it('torpedo threshold + the API naming-convention classifier', () => {
+      expect(MISSILE_TORPEDO_MIN_SIZE).toBe(5);
+      expect(missileSizeFor({ className: 'MRCK_S06_X_Sabre_Firebird_S03', name: 'Rack', size: 6 })).toBe(3);
+      expect(missileSizeFor({ className: 'MRCK_S06_AEGS_TorpedoRack', name: 'Rack' })).toBe(6);
+      expect(missileSizeFor({ className: '', name: '12xS3 Missile Rack' })).toBe(3);
+      expect(missileSizeFor({ className: '', name: 'Quad S5 Torpedo Rack' })).toBe(5);
+      expect(missileSizeFor({ className: '', name: 'MSD-543 Missile Rack' })).toBe(3);
+      expect(missileSizeFor({ className: '', name: 'Rack', size: 4 })).toBe(4);
+      expect(missileSizeFor({})).toBe(0);
+      expect(missileSizeFor({ size: null })).toBe(0);
+      expect(missileSizeFor({ className: '', name: 'Rack', size: 6 }) >= MISSILE_TORPEDO_MIN_SIZE).toBe(true);
+    });
+  });
+
   it('legacy ships (un-migrated: no components/gunDraw/shieldMin/pdcCount, no allocs/pdcOn) simulate at full weapons + pool shields, net ≥ 0', () => {
     const base = syn('Legacy', { health: 50000, armor: 1000, shield: 2000, regen: 50, fixedDps: 500 });
     const legacy = { ...base } as ShipData;
@@ -386,8 +498,10 @@ describe('component power allocation (T19)', () => {
     expect(result.rounds[0].b.hullBefore - result.rounds[0].b.hullAfter).toBeGreaterThan(0); // fires at full power
     const a = defaultAllocation(legacy);
     expect(a.allocs).toEqual([]);
-    expect(a.gunPips).toBe(legacy.weaponPool);
-    expect(a.shieldPips).toBe(legacy.shieldPool);
+    // Defaults on a component-less snapshot: no shield components → floor 0; no
+    // gunDraw → full cost 0 → 0 pips. The ship opens minimal and fightable.
+    expect(a.gunPips).toBe(0);
+    expect(a.shieldPips).toBe(0);
     expect(isOverdrawn(legacy, toConfig(legacy, a))).toBe(false);
   });
 
@@ -986,5 +1100,237 @@ describe('shared engine helpers (Findings 8/9)', () => {
     expect(ordnanceKindLabel(missile)).toBe('Missile');
     const quantumNonTorp = { ...missile, torpedo: false, damageType: 'distortion' as const };
     expect(ordnanceKindLabel(quantumNonTorp)).toBe('Quantum torpedo'); // distortion tag wins
+  });
+});
+
+/** Per-shield generator on/off (2026-10-23): floor/cap/factor derive from the ON
+ *  set; all-off drops shields completely (any ship, Stronghold class included). */
+describe('per-shield generator on/off', () => {
+  // 2× Shield 4/5 (Carrack-style Barbican pair): all-on floor 8 cap 10.
+  const twoShieldShip = (name: string, over?: Partial<ShipData>): ShipData => ({
+    ...syn(name, {
+      health: 1, armor: 0, shield: 1000, regen: 100, fixedDps: 0,
+      components: [comp('Shield', 4, 5), comp('Shield', 4, 5)],
+    }),
+    shieldPool: 10,
+    ...over,
+  });
+  const cfgOf = (ship: ShipData, s: number, shieldOns: boolean[]): ShipConfig =>
+    ({ ship, mannedTurrets: 0, powerToWeapons: 0, powerToShields: s, allocs: [], pdcOn: true, shieldOns });
+
+  it('shield floor/cap/strength: 2×(4/5) → all-on 8/10/1, one-off 4/4 (boost locked)/½, all-off 0/0/0', () => {
+    const ship = twoShieldShip('ShieldTog');
+    expect(shieldOnsOf(ship, undefined)).toEqual([true, true]); // missing = all ON
+    expect(shieldFloorOn(ship, undefined)).toBe(8);
+    expect(shieldCapOn(ship, undefined)).toBe(10); // boost ceiling = full pool
+    expect(shieldFloorOn(ship, [true, false])).toBe(4);
+    expect(shieldCapOn(ship, [true, false])).toBe(4); // BOOST LADDER: any OFF ⇒ cap = floor
+    expect(shieldFloorOn(ship, [false, false])).toBe(0);
+    expect(shieldCapOn(ship, [false, false])).toBe(0);
+    expect(shieldStrengthFactor(ship, undefined)).toBe(1);
+    expect(shieldStrengthFactor(ship, [true, false])).toBeCloseTo(0.5); // fullDraw share, NOT the capped value
+    expect(shieldStrengthFactor(ship, [false, false])).toBe(0);
+    // Non-Shield components are always "ON" (toggles only apply to Shield entries).
+    const mixed = twoShieldShip('ShieldTog2', { components: [comp('Shield', 4, 5), comp('Radar', 1, 2), comp('Shield', 4, 5)] });
+    expect(shieldOnsOf(mixed, [true, true, false])).toEqual([true, true, false]);
+    expect(shieldFloorOn(mixed, [true, true, false])).toBe(4);
+  });
+
+  it('regen at the locked floor = strength factor (s/cap = 1 with a generator OFF)', () => {
+    const ship = twoShieldShip('ShieldBoost');
+    // One generator OFF: cap collapses to the floor (4) — pips at the floor read the
+    // ON set's regen at full fraction × 0.5 strength, NOT the old 5/10 double-cut.
+    expect(derivedStats(cfgOf(ship, 4, [true, false])).shieldRegen).toBeCloseTo(50);
+    expect(derivedStats(cfgOf(ship, 10, [true, true])).shieldRegen).toBe(100); // all-on boost intact
+  });
+
+  it('regen = regenPerSec × (pips / ON cap) × strength factor: one of two equal OFF halves it', () => {
+    const ship = twoShieldShip('ShieldRegenTog');
+    expect(derivedStats(cfgOf(ship, 10, [true, true])).shieldRegen).toBe(100); // full pool
+    expect(derivedStats(cfgOf(ship, 5, [true, false])).shieldRegen).toBeCloseTo(50); // 5 > 4 cap (boost locked) saturates × 0.5
+    expect(derivedStats(cfgOf(ship, 5, [true, true])).shieldRegen).toBeCloseTo(50); // 5/10 × 1 (unchanged model)
+    expect(derivedStats(cfgOf(ship, 0, [false, false])).shieldRegen).toBe(0);
+  });
+
+  it('all generators OFF: battle starts shields-down — round 1 damage lands on structure; one OFF halves the pool', () => {
+    const ship = twoShieldShip('ShieldOff', { health: 90000, armor: 1000 });
+    const target = syn('TargetOff', { health: 900000, armor: 0, shield: 0, regen: 0, fixedDps: 500 });
+    const off = simulate(cfgOf(ship, 0, [false, false]), fullConfig(target), 5);
+    expect(off.rounds[0].a.phase).toBe('armor');
+    expect(off.rounds[0].a.shieldBefore).toBe(0);
+    expect(off.rounds[0].a.shieldAfter).toBe(0);
+    expect(off.rounds[0].a.armorBefore - off.rounds[0].a.armorAfter).toBeGreaterThan(0);
+    const half = simulate(cfgOf(ship, 5, [true, false]), fullConfig(target), 5);
+    expect(half.rounds[0].a.phase).toBe('shield');
+    expect(half.rounds[0].a.shieldBefore).toBe(500); // strength factor 0.5 of the 1000 pool
+    const on = simulate(cfgOf(ship, 10, [true, true]), fullConfig(target), 5);
+    expect(on.rounds[0].a.shieldBefore).toBe(1000); // legacy all-on pool untouched
+  });
+
+  it('RULE-R escape hatch: the 4 red-at-defaults ships clear overdraw with ONE shield generator OFF', () => {
+    for (const name of ['Ironclad', 'Ironclad Assault', 'Prowler Utility Wikelo Work Special', 'MISC Hull B']) {
+      const ship = findShip(name);
+      const d = defaultAllocation(ship);
+      expect(isOverdrawn(ship, toConfig(ship, d)), `${name} red at all-on defaults`).toBe(true);
+      const shieldOns = shieldOnsOf(ship, undefined);
+      const si = (ship.components ?? []).findIndex((c) => (c.type ?? '') === 'Shield');
+      expect(si, `${name} has a shield component`).toBeGreaterThanOrEqual(0);
+      shieldOns[si] = false;
+      // Drop the shield pips to the REDUCED ON-set floor — the freed minOnline is
+      // only reclaimed by sliding the shield level down (defaults open AT the
+      // all-on floor; an OFF generator shrinks floor AND cap to the reduced ON-set
+      // floor, which is why the slide reclaims the pips).
+      const cfg: ShipConfig = {
+        ship, mannedTurrets: ship.turretCount, powerToWeapons: d.gunPips,
+        powerToShields: Math.min(d.shieldPips, shieldFloorOn(ship, shieldOns)),
+        allocs: d.allocs, pdcOn: d.pdcOn, shieldOns,
+      };
+      expect(netPower(ship, cfg), `${name} net ≥ 0 with one shield OFF`).toBeGreaterThanOrEqual(0);
+      expect(isOverdrawn(ship, cfg)).toBe(false);
+    }
+  });
+
+  it('RULE-R fleet facts unchanged with all shields ON: ladder 224 ships, 4 red, free min 6 / p50 12', () => {
+    // defaultAllocation never toggles shields (per-Shield on/off is a user action),
+    // so the T20 ladder counts and red-ship set keep the 2026-10-23 (QDrive-off,
+    // round-up billing) numbers asserted by the T19 fleet tests — re-asserted here
+    // to pin that the toggle feature changed nothing at defaults.
+    const frees = ships.map((s) => s.powerSegments - (s.components ?? []).reduce((t, c) => t + defaultAllocOf(c), 0));
+    const sorted = [...frees].sort((a, b) => a - b);
+    expect(sorted[0]).toBe(6);
+    const red = ships
+      .map((s) => ({ n: s.name, net: netPower(s, toConfig(s, defaultAllocation(s))) }))
+      .filter((x) => x.net < 0);
+    expect(red.length).toBe(4);
+    expect([...red.map((x) => x.n)].sort()).toEqual(['Ironclad', 'Ironclad Assault', 'MISC Hull B', 'Prowler Utility Wikelo Work Special']);
+  });
+
+  it('new defaults (2026-10-23): sample ships open at shields-floor + guns-min-pips, fightable', () => {
+    // 600i probe: floor 8 (2×4/5 gens), guns 8 (draw 8 / pool 8 → full cost at
+    // every p; min = full pool), reserve 8, net 0. NOTE: the plan example guessed
+    // "8 shields / 2 guns" for the 600i — the snapshot's aggregate gunDraw is 8
+    // pips (pool 8), so the honest minimum powered figure is 8, not 2.
+    const six = findShip('600i');
+    const a = defaultAllocation(six);
+    expect(a.shieldPips).toBe(8);
+    expect(a.gunPips).toBe(8);
+    expect(a.pdcOn).toBe(true);
+    expect(netPower(six, toConfig(six, a))).toBe(0);
+    expect(isOverdrawn(six, toConfig(six, a))).toBe(false);
+    const gladius = findShip('Gladius'); // 2×(1/3): floor 2; draw 2.1/pool 4 → cost 3 at p = 4
+    const g = defaultAllocation(gladius);
+    expect(g.shieldPips).toBe(2);
+    expect(g.gunPips).toBe(4);
+    expect(netPower(gladius, toConfig(gladius, g))).toBe(5);
+    const hammer = findShip('Hammerhead'); // 2×(2/5): floor 4; draw 10/pool 10 → 10
+    expect(defaultAllocation(hammer).shieldPips).toBe(4);
+    expect(defaultAllocation(hammer).gunPips).toBe(10);
+    // Default shields sit exactly at the all-ON floor, and every default pips at
+    // the FULL gun draw cost (minGunPipsFull property) — fleet-wide invariant.
+    for (const s of ships) {
+      const d = defaultAllocation(s);
+      expect(d.shieldPips).toBe(shieldFloorOn(s, undefined));
+      // Guns open at the full-draw cost whenever the ladder left them powered
+      // (PDC on and gunPips > 0); the ladder cut (guns → 0) frees the pool.
+      if (d.pdcOn && d.gunPips > 0) expect(gunCostAt(s, d.gunPips, true)).toBe(pipCost(gunDrawFull(s, true)));
+    }
+  });
+});
+
+describe('T25 fixed-gun mount fallback (declared UI heuristic, src/components/turretMounts.ts)', () => {
+  // Mirrors LoadoutPanel's guns list: the weapons-pool component rows in order.
+  const weaponRows = (s: ShipData) =>
+    (s.components ?? []).map((c, i) => ({ c, i })).filter(({ c }) => WEAPONS_POOL_COMPONENT_TYPES.has(c.type ?? ''));
+  const pair = (s: ShipData) => fixedGunPairings(s, weaponRows(s), turretMountMatcher(s));
+
+  it('600i: 3 fixed M7A Cannons pair 1:1 onto the 3 gimbal rows; matched remote turrets untouched', () => {
+    const six = findShip('600i');
+    const p = pair(six);
+    expect(p.guns).toBe(3);
+    expect(p.mountsTotal).toBe(3);
+    const rows = weaponRows(six);
+    const gimbals = rows.filter(({ c }) => c.name === 'VariPuck S5 Gimbal Mount');
+    expect(gimbals.length).toBe(3);
+    for (const { i } of gimbals) {
+      expect(p.mounts.get(i)).toBeNull();
+      expect(p.byIndex.get(i)).toEqual([{ name: 'M7A Cannon', count: 1, dps: 1536.3, alpha: 921.8 }]);
+    }
+    const remotes = rows.filter(({ c }) => c.name === 'Remote Turret');
+    expect(remotes.length).toBe(2);
+    for (const { i } of remotes) {
+      expect(p.mounts.get(i)?.kind).toBe('remote'); // T23 join keeps rendering
+      expect(p.byIndex.get(i)).toBeUndefined(); // no fallback double-list
+    }
+    for (const groups of p.byIndex.values()) {
+      expect(groups.map((g) => g.name)).not.toContain('CF-337 Panther Repeater'); // matched names excluded
+    }
+  });
+
+  it('F7A Hornet Mk II (guns > mounts): 6 fixed guns round-robin onto the 4 empty turret rows; Mustang Alpha ×N-aggregates', () => {
+    const hornet = findShip('F7A Hornet Mk II');
+    expect(hornet.turretMounts ?? []).toHaveLength(0); // T23 gap ship
+    const p = pair(hornet);
+    expect(p.guns).toBe(6);
+    expect(p.mountsTotal).toBe(4);
+    const omnisky = { name: 'Omnisky IX Cannon', count: 1, dps: 546.8, alpha: 218.7 };
+    const revenant = { name: 'Revenant Gatling', count: 1, dps: 1266, alpha: 63.3 };
+    const turretRows = weaponRows(hornet).filter(({ c }) => TURRET_COMPONENT_TYPES.has(c.type ?? ''));
+    expect(turretRows.length).toBe(4);
+    // fixed list order [Revenant, Omnisky×4, Revenant] over 4 rows → gun k lands on
+    // row k % 4: rows 0-1 take the two Revenants interleaved with Omniskys.
+    expect(p.byIndex.get(turretRows[0].i)).toEqual([revenant, omnisky]);
+    expect(p.byIndex.get(turretRows[1].i)).toEqual([omnisky, revenant]);
+    expect(p.byIndex.get(turretRows[2].i)).toEqual([omnisky]);
+    expect(p.byIndex.get(turretRows[3].i)).toEqual([omnisky]);
+    // 2 guns / 1 mount → the mount row aggregates identical names: ×2, dps summed.
+    const mustang = findShip('Mustang Alpha');
+    const m = pair(mustang);
+    expect(m.guns).toBe(2);
+    expect(m.mountsTotal).toBe(1);
+    const groups = m.byIndex.get(weaponRows(mustang).filter(({ c }) => TURRET_COMPONENT_TYPES.has(c.type ?? ''))[0].i);
+    expect(groups?.length).toBe(1);
+    expect(groups?.[0].name).toBe('CF-227 Badger Repeater');
+    expect(groups?.[0].count).toBe(2);
+    expect(groups?.[0].dps).toBeCloseTo(656.2, 1);
+    expect(groups?.[0].alpha).toBe(26.2); // shown once = max per-gun alpha
+  });
+
+  it('mounts > guns pairs the first rows only; fixed guns named on a matched mount are excluded', () => {
+    const base = syn('FGPair', { health: 100, armor: 0, shield: 0, regen: 0, fixedDps: 0 });
+    const turretComp = (name: string): ShipComponent =>
+      ({ type: 'Turret', name, className: 'FG_Mount', size: 3, grade: null, power: null, coolant: null, generation: { power: null, coolant: null } });
+    const fixedGun = (name: string, dps: number, alpha: number) =>
+      ({ name, type: 'fixed' as const, damageType: 'physical' as const, dps, alpha, power: 1, ammo: null });
+    // 3 Turret rows share one className; only the first has an API mount entry.
+    const ship: ShipData = {
+      ...base,
+      components: [turretComp('FG T1'), turretComp('FG T2'), turretComp('FG T3')],
+      turretMounts: [{
+        mount: 'hardpoint_fg', className: 'FG_Mount', kind: 'remote',
+        weapons: [{ name: 'CF-337 Panther Repeater', size: 3, dps: 100, alpha: 10, count: 2 }],
+      }],
+      // CF-337 is rendered on the matched mount → excluded; 2 guns left for 2 rows.
+      weapons: [fixedGun('CF-337 Panther Repeater', 400, 50), fixedGun('M6A Cannon', 300, 90), fixedGun('M7A Cannon', 200, 80)],
+    };
+    const p = pair(ship);
+    expect(p.guns).toBe(2); // CF-337 excluded as already rendered
+    expect(p.mountsTotal).toBe(2);
+    expect(p.mounts.get(0)?.mount).toBe('hardpoint_fg');
+    expect(p.byIndex.get(0)).toBeUndefined();
+    expect(p.byIndex.get(1)).toEqual([{ name: 'M6A Cannon', count: 1, dps: 300, alpha: 90 }]);
+    expect(p.byIndex.get(2)).toEqual([{ name: 'M7A Cannon', count: 1, dps: 200, alpha: 80 }]);
+    // mounts > guns: the extra row renders nothing (undefined).
+    const ship3: ShipData = {
+      ...base,
+      components: [turretComp('FG A'), turretComp('FG B'), turretComp('FG C')],
+      turretMounts: [],
+      weapons: [fixedGun('M5A Cannon', 100, 40), fixedGun('M6A Cannon', 200, 50)],
+    };
+    const p3 = pair(ship3);
+    expect(p3.guns).toBe(2);
+    expect(p3.mountsTotal).toBe(3);
+    expect(p3.byIndex.get(0)).toEqual([{ name: 'M5A Cannon', count: 1, dps: 100, alpha: 40 }]);
+    expect(p3.byIndex.get(1)).toEqual([{ name: 'M6A Cannon', count: 1, dps: 200, alpha: 50 }]);
+    expect(p3.byIndex.get(2)).toBeUndefined();
   });
 });

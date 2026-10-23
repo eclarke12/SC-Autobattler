@@ -140,9 +140,14 @@ button.power-block:focus-visible { outline: 2px solid var(--gold); outline-offse
 .pdc-row { font-size: 0.85rem; }
 .pdc-row input[type="checkbox"] { accent-color: var(--gold); margin-right: 4px; }
 .comp-list { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.comp-item { display: flex; flex-direction: column; gap: 2px; }
 .comp-row { display: flex; justify-content: space-between; gap: 10px; font-size: 0.78rem; color: var(--text-dim); background: #0f1626; border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; }
 .comp-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
 .comp-detail { flex: none; font-variant-numeric: tabular-nums; }
+.comp-sublist { display: flex; flex-direction: column; gap: 1px; margin: 0 0 1px 14px; border-left: 1px solid var(--border); padding-left: 8px; }
+.comp-sub { display: flex; justify-content: space-between; gap: 10px; font-size: 0.7rem; color: var(--text-dim); }
+.comp-sub-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.comp-sub-detail { flex: none; font-variant-numeric: tabular-nums; color: var(--gold); opacity: 0.85; }
 .comp-sg { color: var(--gold); font-style: normal; font-size: 0.72rem; }
 .no-sim-tag { color: var(--text-dim); font-size: 0.7rem; opacity: 0.85; font-style: normal; }
 
@@ -154,7 +159,7 @@ button.power-block:focus-visible { outline: 2px solid var(--gold); outline-offse
 .summary-row .net-chip { font-size: 0.72rem; }
 .summary-row.power-row.overdraw > span { color: #ff7a63; }
 
-.readouts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 12px; margin-top: 8px; font-size: 0.85rem; }
+.readouts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 12px; margin: 0 0 12px; font-size: 0.85rem; }
 .readouts > div { display: flex; justify-content: space-between; gap: 6px; }
 .readouts span { color: var(--text-dim); }
 .power-notes { margin: 8px 0 0; padding-left: 18px; color: var(--gold); font-size: 0.8rem; }

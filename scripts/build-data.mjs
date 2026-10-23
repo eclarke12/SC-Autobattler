@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { z } from 'zod';
+import { missileSizeFor, MISSILE_TORPEDO_MIN_SIZE } from '../src/engine/missile-size.mjs';
 
 const BASE = 'https://api.star-citizen.wiki/api';
 const OUT_DIR = 'data';
@@ -58,6 +59,21 @@ const shipSchema = z.object({
     ammo: z.number().int().positive().nullable(),
   })).min(1),
   turretCount: z.number().int().nonnegative(),
+  // T23 per-mount weapons (display-only). Join key = the API turret-array entry's
+  // `class_name`, which equals the ports-tree Turret/TurretBase component className.
+  // T24: weapon entries carry size/dps/alpha for the sub-line rendering.
+  turretMounts: z.array(z.object({
+    mount: z.string(),
+    className: z.string().min(1),
+    kind: z.enum(['manned', 'remote', 'pdc']),
+    weapons: z.array(z.object({
+      name: z.string().min(1),
+      size: z.number().int().nullable(),
+      dps: z.number().nonnegative(),
+      alpha: z.number().nonnegative(),
+      count: z.number().int().positive(),
+    })).min(1),
+  })),
   emission: z.object({ ir: z.number().nonnegative() }),
   missiles: z.object({
     size: z.number().nonnegative(),
@@ -150,7 +166,8 @@ function sizeClassFor(ship) {
 // Ordnance & countermeasures come from the hardpoint tree (ship.ports, recursively
 // equipped_item). Missile racks give launcher count and the size of the MISSILES they
 // fire (not the hardpoint size: a 6x hardpoint can carry a 12xS3 rack); torpedoes are
-// missiles of size >= 5, and racks named "Torpedo" always count. WeaponDefensive/
+// missiles of size >= MISSILE_TORPEDO_MIN_SIZE, and racks named "Torpedo" always
+// count. WeaponDefensive/
 // CountermeasureLauncher ports are Decoy (flare) vs Noise (chaff).
 // Warload count + per-tube damage come from weaponry.missiles (standard loadout aggregate).
 function collectPorts(ports, out = []) {
@@ -205,26 +222,8 @@ function componentsOf(ship) {
   return out;
 }
 
-// Size of the missiles a rack fires, from the API naming conventions:
-//  - class_name trailing missile-size token: MRCK_S06_..._AEGS_Sabre_Firebird_S03 → 3
-//    (leading MRCK_S0N is the hardpoint; a trailing token overrides it)
-//  - explicit "12xS3" / "2xS2" / "Quad S5" in the display name
-//  - MSD-abc racks: digits are hardpoint/count/missile-size (MSD-543 = S5 rack, 4×S3)
-//  - otherwise missile size == hardpoint size (rack fills its hardpoint, e.g. S6 torpedoes)
-function missileSizeFor(item) {
-  const cn = item.class_name ?? '';
-  const name = item.name ?? '';
-  const trail = cn.match(/_S(\d{1,2})$/i);
-  if (trail) return Number(trail[1]);
-  const named = name.match(/\d+\s*x\s*S(\d)/i) ?? name.match(/\bQuad\s+S(\d)\b/i) ?? name.match(/\bS(\d)\b/i);
-  if (named) return Number(named[1]);
-  const msd = name.match(/MSD-(\d)(\d)(\d)/i);
-  if (msd) return Number(msd[3]);
-  const prefix = cn.match(/^MRCK_S(\d{1,2})/i);
-  if (prefix) return Number(prefix[1]);
-  return num(item.size, 0);
-}
-
+// Missile warhead size uses the shared single source src/engine/missile-size.mjs
+// (same classifier the LoadoutPanel per-rack sub-lines use — no UI/builder drift).
 function ordnanceOf(ship) {
   let racks = 0;
   let maxSize = 0;
@@ -236,7 +235,7 @@ function ordnanceOf(ship) {
     if (!it) continue;
     if (it.type === 'MissileLauncher') {
       racks++;
-      maxSize = Math.max(maxSize, missileSizeFor(it));
+      maxSize = Math.max(maxSize, missileSizeFor({ className: it.class_name, name: it.name, size: it.size }));
       const hay = `${it.name ?? ''} ${it.class_name ?? ''}`.toLowerCase();
       if (/torpedo/.test(hay)) torpedoNamed = true;
       if (/quantum/.test(hay)) quantumNamed = true;
@@ -258,11 +257,81 @@ function ordnanceOf(ship) {
       size: maxSize,
       ammo: perShot > 0 ? ammo : 0,
       perShot,
-      torpedo: torpedoNamed || maxSize >= 5,
+      torpedo: torpedoNamed || maxSize >= MISSILE_TORPEDO_MIN_SIZE,
       damageType: isQuantum ? 'distortion' : 'physical',
     },
     countermeasures: { decoys },
   };
+}
+
+// Per-mount weapons (T23): the Guns-section "Turret:" rows show the MOUNT component
+// (e.g. "VariPuck S3 Gimbal Mount", "Manned Turret"), not the guns on it. The live
+// API (probed 2026-10-23) carries real per-mount weapon names on ALL three turret
+// arrays — `turrets.manned[i].weapons[].name`, same shape for `remote` and `pdc`
+// (Hammerhead: 4× "CF-447 Rhino Repeater"; Idris: 11× "M2C \"Swarm\"" PDCs;
+// Reclaimer remote: 2× "CF-337 Panther Repeater"). Entry keys include `class_name`
+// = the ports-tree Turret/TurretBase component className (exact join key, 175/191
+// manned entries match; the 16 non-matches are null-class entries like the Idris
+// tail turret, and Valkyrie door guns) — entries without a class_name cannot be
+// joined and are dropped. `display_name` is a machine label ("port_NameTurret04",
+// "PDT 1"); no human mount label exists in these entries, so the UI keeps the
+// component name as the heading. Entries with zero weapons (empty/unslotted mounts,
+// Reclaimer salvage arms) carry no display info and are dropped. Weapons are
+// deduped by name with counts — T24 shape `{name, size, dps, alpha, count}`:
+// the UI renders one indented sub-line per weapon ("S4 KLWE LaserRepeater S4 —
+// alpha 42 / 110 dps", counts aggregated to "CF-447 Rhino Repeater ×4"). dps is
+// summed across the repeated entries (per-gun API values), alpha = max. Weapon
+// size: API entry-level `weapon_sizes` array (100% populated fleet-wide, 37/274
+// name-token mismatches) aligned to the ordered `weapons[]` list; absent/short →
+// `S<n>` token in the name, else null (declared heuristic). Deviation from the
+// original plan: manned-only →
+// manned+remote+pdc, because the user-facing example ships (Avenger line) have
+// EMPTY turret arrays entirely (their gimbal-mount guns ride in
+// weaponry.fixed_weapons with NO per-mount mapping in the API — unjoinable, UI
+// keeps the plain row there; declared gap).
+function weaponEntrySize(name, idx, sizes) {
+  if (Number.isInteger(sizes?.[idx])) return sizes[idx];
+  const token = name.match(/\bS(\d{1,2})\b/i);
+  return token ? Number(token[1]) : null;
+}
+
+function turretMountsOf(ship) {
+  const out = [];
+  for (const [kind, arr] of [['manned', ship.turrets?.manned], ['remote', ship.turrets?.remote], ['pdc', ship.turrets?.pdc]]) {
+    for (const t of arr ?? []) {
+      if (!t.class_name) continue;
+      const sizes = Array.isArray(t.weapon_sizes) ? t.weapon_sizes : null;
+      const byName = new Map();
+      // Index into the RAW weapons[] (weapon_sizes aligns to it 1:1, probed
+      // 2026-10-23), skipping nameless entries without shifting the size index.
+      for (const [i, w] of (t.weapons ?? []).entries()) {
+        const name = w?.name;
+        if (!name) continue;
+        const cur = byName.get(name);
+        if (cur) {
+          cur.count += 1;
+          cur.dps += num(w.dps, 0);
+          cur.alpha = Math.max(cur.alpha, num(w.alpha, 0));
+        } else {
+          byName.set(name, {
+            name,
+            size: weaponEntrySize(name, i, sizes),
+            dps: num(w.dps, 0),
+            alpha: num(w.alpha, 0),
+            count: 1,
+          });
+        }
+      }
+      if (byName.size === 0) continue;
+      out.push({
+        mount: t.display_name ?? t.class_name,
+        className: t.class_name,
+        kind,
+        weapons: [...byName.values()],
+      });
+    }
+  }
+  return out;
 }
 
 function isDisplayModel(ship) {
@@ -365,6 +434,7 @@ function normalize(ship) {
     },
     weapons: [...fixed, ...manned],
     turretCount: (ship.turrets?.manned ?? []).length,
+    turretMounts: turretMountsOf(ship),
     emission: { ir: num(ship.emission?.ir, 0) },
     ...ordnanceOf(ship),
     powerSegments: Math.round(num(ship.power?.generation_segments, 1)),
@@ -465,9 +535,12 @@ mkdirSync(OUT_DIR, { recursive: true });
 writeFileSync(OUT_FILE, JSON.stringify(ships));
 const withImages = ships.filter((s) => s.image).length;
 const withTurrets = ships.filter((s) => s.turretCount > 0).length;
+const withMounts = ships.filter((s) => s.turretMounts.length > 0).length;
+const mountsByKind = {};
+for (const s of ships) for (const m of s.turretMounts) mountsByKind[m.kind] = (mountsByKind[m.kind] ?? 0) + 1;
 const bySize = {};
 for (const s of ships) bySize[s.sizeClass] = (bySize[s.sizeClass] ?? 0) + 1;
-console.log(`wrote ${OUT_FILE}: ${ships.length} ships | unarmed-filtered=${unarmed} | images=${withImages} | manned-turret ships=${withTurrets} | sizes=${JSON.stringify(bySize)}`);
+console.log(`wrote ${OUT_FILE}: ${ships.length} ships | unarmed-filtered=${unarmed} | images=${withImages} | manned-turret ships=${withTurrets} | turretMounts ships=${withMounts} entries=${JSON.stringify(mountsByKind)} | sizes=${JSON.stringify(bySize)}`);
 
 // T18 component-join fleet stats (report to docs/data-notes.md).
 const pctl = (arr, p) => {

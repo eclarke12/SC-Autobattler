@@ -8,7 +8,10 @@ const clampBound = (n: number) => Math.min(Math.max(0, Math.trunc(n)), 256);
 /** Clickable power-pip blocks. 1 pip = 1 block. Clicking block N of max sets the
  *  value to N (so blocks 1..N fill in, e.g. pick block 4 of 5 from value 1 => fills 1-4).
  *  Clicking the top filled block clears it (value N => N-1). `min` floors the legal
- *  range (shield floor = Σ shield minOnline — Stronghold ships can't drop shields to 0). */
+ *  range — for shields it is the ON-set floor (Σ minOnline of the generators switched
+ *  on, per-Shield toggle 2026-10-23): toggling generators OFF lowers the floor and
+ *  the cap, so any ship (Stronghold class included) can reach 0 pips with every
+ *  generator OFF. */
 export function PowerBlocks({ label, value, max, min = 0, onChange, kind }: {
   label: ReactNode;
   value: number;

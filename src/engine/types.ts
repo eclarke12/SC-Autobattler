@@ -22,7 +22,9 @@ export interface Weapon {
 }
 
 /** Per-resource pip band: `minOnline` = lowest pip count that keeps the
- *  component online, `fullDraw` = draw at full allocation (pips). Nested per
+ *  component online, `fullDraw` = draw at full allocation (pips). Raw API usage
+ *  can be FRACTIONAL (e.g. 2.1); the engine bills whole segments via
+ *  `pipCost` = ceil (round-up rule, 2026-10-23). Nested per
  *  resource (power/coolant) so a future heat model slots in without renaming (T17). */
 export interface ShipResourceRange {
   minOnline: number;
@@ -42,6 +44,31 @@ export interface ShipComponent {
   power: ShipResourceRange | null;
   coolant: ShipResourceRange | null;
   generation: { power: number | null; coolant: number | null };
+}
+
+/** One gun model on a turret hardpoint (T24). `dps` is summed across the mount's
+ *  repeated entries of this gun, `alpha` is the max per-gun alpha, `count` the
+ *  number of guns, `size` from the API entry-level `weapon_sizes` array aligned to
+ *  `weapons[]` (name `S<n>` token fallback, null when neither yields). */
+export interface TurretMountWeapon {
+  name: string;
+  size: number | null;
+  dps: number;
+  alpha: number;
+  count: number;
+}
+
+/** Weapons loaded on one turret hardpoint (T23, display-only). Built from the API
+ *  `turrets.manned/remote/pdc[i].weapons[]`; `className` is the join key = the
+ *  ports-tree Turret/TurretBase component `className`. No engine use —
+ *  power for every turret rides in the aggregate guns pool. */
+export interface TurretMount {
+  /** API entry label (`display_name ?? class_name`) — machine-grade ("port_NameTurret04",
+   *  "PDT 1"); the UI shows the component name as the heading and this as context. */
+  mount: string;
+  className: string;
+  kind: 'manned' | 'remote' | 'pdc';
+  weapons: TurretMountWeapon[];
 }
 
 export interface ShipData {
@@ -71,6 +98,9 @@ export interface ShipData {
   };
   weapons: Weapon[];
   turretCount: number;
+  /** Per-mount weapons (T23 join, display-only). May be absent on un-migrated
+   *  snapshots — the UI degrades to the plain guns-pool row list. */
+  turretMounts?: TurretMount[];
   /** Sensor emissions from the wiki API; IR signature drives decoy evasion math. */
   emission: { ir: number };
   /** Ship-launched ordnance from the hardpoint tree + standard-loadout warload. */
@@ -102,8 +132,11 @@ export interface ShipData {
    *  joined by the builder (T18); manned-turret/PDC draw rides in the weapons pool
    *  via `gunDrawFull`. */
   gunDraw?: number;
-  /** Σ shield-component `minOnline` — the ship's shield power floor (0 = no shield
-   *  data); enforced by the UI slider bounds, NOT by the engine. */
+  /** Σ shield-component `minOnline` over ALL shield components — the ALL-ON shield
+   *  power floor (0 = no shield data). The per-Shield toggle (2026-10-23) derives the
+   *  effective floor from the ON set (`shieldFloorOn` in power.ts) — generators
+   *  switched off drop out of it — enforced by the UI slider bounds, NOT by the
+   *  engine. */
   shieldMin?: number;
   /** Count of PDC turret ports; PDC draw (`pdcCount × TURRET_POWER_PIPS`) enters
    *  the weapons pool while the PDC toggle is on (declared heuristic, plan T17). */
@@ -119,14 +152,21 @@ export interface ShipConfig {
   mannedTurrets: number;
   /** Gun pips 0..weaponPool; gun draw scales with the pip fraction. */
   powerToWeapons: number;
-  /** Shield pips; legal UI range is shieldMin..shieldPool, 0 = shields off
-   *  (the engine enforces no floor). */
+  /** Shield pips; legal UI range is `shieldFloorOn..shieldCapOn` of the ON shield
+   *  set (per-Shield toggles, 2026-10-23), 0 = shields off (the engine enforces no
+   *  floor). */
   powerToShields: number;
   /** Allocated pips per `ship.components[]` index (0..fullDraw). Missing =
    *  every component at its minOnline. */
   allocs?: number[];
   /** PDC on/off: on draws `pdcCount × TURRET_POWER_PIPS` into the weapons pool. */
   pdcOn?: boolean;
+  /** Per-Shield-component on/off, index-parallel to `ship.components[]` (non-Shield
+   *  entries ignored; short array = missing entries are on; missing = all shields
+   *  on). An OFF generator frees its minOnline pips from the shield floor, its
+   *  fullDraw share from the slider cap, and its share of shield strength — a ship
+   *  can run 0 shields (floor 0, cap 0, factor 0). */
+  shieldOns?: boolean[];
 }
 
 export interface BattleConfig {

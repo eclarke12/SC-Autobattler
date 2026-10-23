@@ -9,6 +9,10 @@ export interface SideKnobs {
   alloc?: number[];
   /** PDC on/off; absent = App defaults to on. */
   pdcOn?: boolean;
+  /** Per-Shield-component on/off, index-parallel to `ship.components[]` (only Shield
+   *  entries carry meaning; absent = App fills all shields on). Serialized as a
+   *  compact '101' string in the shared link. */
+  shieldOns?: boolean[];
 }
 
 export interface MatchupState {
@@ -33,6 +37,8 @@ export function encodeMatchup(m: MatchupState): string {
   if (m.b.alloc) p.set('ba', m.b.alloc.join(','));
   if (m.a.pdcOn !== undefined) p.set('pd', m.a.pdcOn ? '1' : '0');
   if (m.b.pdcOn !== undefined) p.set('ps', m.b.pdcOn ? '1' : '0');
+  if (m.a.shieldOns) p.set('sa', m.a.shieldOns.map((v) => (v ? '1' : '0')).join(''));
+  if (m.b.shieldOns) p.set('sb', m.b.shieldOns.map((v) => (v ? '1' : '0')).join(''));
   return `#?${p.toString()}`;
 }
 
@@ -58,9 +64,14 @@ export function decodeMatchup(hash: string): MatchupState | null {
     const v = p.get(k);
     return v === '1' ? true : v === '0' ? false : undefined;
   };
+  const shieldOns = (k: string): boolean[] | undefined => {
+    const raw = p.get(k);
+    if (raw === null || raw === '') return undefined;
+    return raw.split('').map((ch) => ch === '1');
+  };
   return {
-    a: { uuid: a, turrets: n('at'), w: n('aw'), s: n('as'), alloc: alloc('aa'), pdcOn: pdc('pd') },
-    b: { uuid: b, turrets: n('bt'), w: n('bw'), s: n('bs'), alloc: alloc('ba'), pdcOn: pdc('ps') },
+    a: { uuid: a, turrets: n('at'), w: n('aw'), s: n('as'), alloc: alloc('aa'), pdcOn: pdc('pd'), shieldOns: shieldOns('sa') },
+    b: { uuid: b, turrets: n('bt'), w: n('bw'), s: n('bs'), alloc: alloc('ba'), pdcOn: pdc('ps'), shieldOns: shieldOns('sb') },
     seed: n('seed'),
   };
 }
