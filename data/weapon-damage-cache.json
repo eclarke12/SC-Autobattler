@@ -1,0 +1,2860 @@
+{
+ "10-series greatsword cannon": {
+  "name": "10-Series Greatsword Cannon",
+  "variants": [
+   {
+    "className": "KBAR_BallisticCannon_S2",
+    "damageType": "physical",
+    "dps": {
+     "physical": 304.1,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "11-series broadsword cannon": {
+  "name": "11-Series Broadsword Cannon",
+  "variants": [
+   {
+    "className": "KBAR_BallisticCannon_S3",
+    "damageType": "physical",
+    "dps": {
+     "physical": 455.3,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "9-series longsword cannon": {
+  "name": "9-Series Longsword Cannon",
+  "variants": [
+   {
+    "className": "KBAR_BallisticCannon_S1",
+    "damageType": "physical",
+    "dps": {
+     "physical": 202.5,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "absolution distortion scattergun": {
+  "name": "Absolution Distortion Scattergun",
+  "variants": [
+   {
+    "className": "PRAR_DistortionScatterGun_S5",
+    "damageType": "distortion",
+    "dps": {
+     "physical": 0,
+     "energy": 0,
+     "distortion": 720,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "ad4b ballistic gatling": {
+  "name": "AD4B Ballistic Gatling",
+  "variants": [
+   {
+    "className": "BEHR_BallisticGatling_S4",
+    "damageType": "physical",
+    "dps": {
+     "physical": 1266,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "ad5b ballistic gatling": {
+  "name": "AD5B Ballistic Gatling",
+  "variants": [
+   {
+    "className": "BEHR_BallisticGatling_S5",
+    "damageType": "physical",
+    "dps": {
+     "physical": 1537.5,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "ad6b ballistic gatling": {
+  "name": "AD6B Ballistic Gatling",
+  "variants": [
+   {
+    "className": "BEHR_BallisticGatling_S6",
+    "damageType": "physical",
+    "dps": {
+     "physical": 2848.5,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "ardor-1 salvaged repeater": {
+  "name": "Ardor-1 Salvaged Repeater",
+  "variants": [
+   {
+    "className": "NONE_LaserRepeater_S1",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 210,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "ardor-2 salvaged repeater": {
+  "name": "Ardor-2 Salvaged Repeater",
+  "variants": [
+   {
+    "className": "NONE_LaserRepeater_S2",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 344.2,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "ardor-3 salvaged repeater": {
+  "name": "Ardor-3 Salvaged Repeater",
+  "variants": [
+   {
+    "className": "NONE_LaserRepeater_S3",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 536.7,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "attrition-1 repeater": {
+  "name": "Attrition-1 Repeater",
+  "variants": [
+   {
+    "className": "HRST_LaserRepeater_S1",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 198.3,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "attrition-2 repeater": {
+  "name": "Attrition-2 Repeater",
+  "variants": [
+   {
+    "className": "HRST_LaserRepeater_S2",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 320.8,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "attrition-3 repeater": {
+  "name": "Attrition-3 Repeater",
+  "variants": [
+   {
+    "className": "HRST_LaserRepeater_S3",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 501.7,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "attrition-4 repeater": {
+  "name": "Attrition-4 Repeater",
+  "variants": [
+   {
+    "className": "HRST_LaserRepeater_S4",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 583.3,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "attrition-5 repeater": {
+  "name": "Attrition-5 Repeater",
+  "variants": [
+   {
+    "className": "HRST_LaserRepeater_S5",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 875,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "attrition-6 repeater": {
+  "name": "Attrition-6 Repeater",
+  "variants": [
+   {
+    "className": "HRST_LaserRepeater_S6",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 2947.9,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "atvs repeater": {
+  "name": "ATVS Repeater",
+  "variants": [
+   {
+    "className": "BEHR_DistortionRepeater_VNG_S2",
+    "damageType": "distortion",
+    "dps": {
+     "physical": 0,
+     "energy": 0,
+     "distortion": 225,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "axiom l-22 repeater": {
+  "name": "Axiom L-22 Repeater",
+  "variants": [
+   {
+    "className": "Krig_LaserRepeater_Bespoke_S4",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 1062.5,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "breakneck s4 gatling": {
+  "name": "Breakneck S4 Gatling",
+  "variants": [
+   {
+    "className": "GLSN_BallisticGatling_S4",
+    "damageType": "physical",
+    "dps": {
+     "physical": 953.3,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "brvs repeater": {
+  "name": "BRVS Repeater",
+  "variants": [
+   {
+    "className": "BEHR_BallisticRepeater_VNG_S2",
+    "damageType": "physical",
+    "dps": {
+     "physical": 450,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "c-07t cannon": {
+  "name": "C-07T Cannon",
+  "variants": [
+   {
+    "className": "BEHR_BallisticCannon_S7_Tiburon",
+    "damageType": "physical",
+    "dps": {
+     "physical": 2683.3,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "c-788 cannon": {
+  "name": "C-788 Cannon",
+  "variants": [
+   {
+    "className": "BEHR_BallisticCannon_S4",
+    "damageType": "physical",
+    "dps": {
+     "physical": 812.5,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "cf-117 bulldog \"hazard-zone\" repeater": {
+  "name": "CF-117 Bulldog \"Hazard-Zone\" Repeater",
+  "variants": [
+   {
+    "className": "KLWE_LaserRepeater_S1_mr01",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 218.7,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "cf-117 bulldog repeater": {
+  "name": "CF-117 Bulldog Repeater",
+  "variants": [
+   {
+    "className": "KLWE_LaserRepeater_S1",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 218.7,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "cf-227 badger \"hazard-zone\" repeater": {
+  "name": "CF-227 Badger \"Hazard-Zone\" Repeater",
+  "variants": [
+   {
+    "className": "KLWE_LaserRepeater_S2_mr01",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 328.1,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "cf-227 badger repeater": {
+  "name": "CF-227 Badger Repeater",
+  "variants": [
+   {
+    "className": "KLWE_LaserRepeater_S2",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 328.1,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   },
+   {
+    "className": "KLWE_LaserRepeater_PDC_S2",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 328.1,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "cf-337 panther \"hazard-zone\" repeater": {
+  "name": "CF-337 Panther \"Hazard-Zone\" Repeater",
+  "variants": [
+   {
+    "className": "KLWE_LaserRepeater_S3_mr01",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 545.6,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "cf-337 panther repeater": {
+  "name": "CF-337 Panther Repeater",
+  "variants": [
+   {
+    "className": "KLWE_LaserRepeater_S3",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 545.6,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "cf-447 rhino repeater": {
+  "name": "CF-447 Rhino Repeater",
+  "variants": [
+   {
+    "className": "KLWE_LaserRepeater_S4",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 817.9,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "cf-557 galdereen repeater": {
+  "name": "CF-557 Galdereen Repeater",
+  "variants": [
+   {
+    "className": "KLWE_LaserRepeater_S5",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 1227.4,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   },
+   {
+    "className": "KLWE_LaserRepeater_S5_Idris_M",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 9375,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "cf-667 mammoth repeater": {
+  "name": "CF-667 Mammoth Repeater",
+  "variants": [
+   {
+    "className": "KLWE_LaserRepeater_S6",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 1841.6,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "cf-999 \"akuma\" repeater": {
+  "name": "CF-999 \"Akuma\" Repeater",
+  "variants": [
+   {
+    "className": "KLWE_LaserRepeater_S1_ATLS_NTLS",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 100,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "condemnation distortion scattergun": {
+  "name": "Condemnation Distortion Scattergun",
+  "variants": [
+   {
+    "className": "PRAR_DistortionScatterGun_S6",
+    "damageType": "distortion",
+    "dps": {
+     "physical": 0,
+     "energy": 0,
+     "distortion": 1040,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "conqueror-7": {
+  "name": "Conqueror-7",
+  "variants": [
+   {
+    "className": "BEHR_BallisticCannon_S7_Idris",
+    "damageType": "physical",
+    "dps": {
+     "physical": 3333.3,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "cvsa cannon": {
+  "name": "CVSA Cannon",
+  "variants": [
+   {
+    "className": "BEHR_BallisticCannon_VNG_S2",
+    "damageType": "physical",
+    "dps": {
+     "physical": 405,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "deadbolt i cannon": {
+  "name": "Deadbolt I Cannon",
+  "variants": [
+   {
+    "className": "ESPR_BallisticCannon_S1",
+    "damageType": "physical",
+    "dps": {
+     "physical": 200,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "deadbolt ii cannon": {
+  "name": "Deadbolt II Cannon",
+  "variants": [
+   {
+    "className": "ESPR_BallisticCannon_S2",
+    "damageType": "physical",
+    "dps": {
+     "physical": 233.3,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "deadbolt iii cannon": {
+  "name": "Deadbolt III Cannon",
+  "variants": [
+   {
+    "className": "ESPR_BallisticCannon_S3",
+    "damageType": "physical",
+    "dps": {
+     "physical": 375.7,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "deadbolt iv cannon": {
+  "name": "Deadbolt IV Cannon",
+  "variants": [
+   {
+    "className": "ESPR_BallisticCannon_S4",
+    "damageType": "physical",
+    "dps": {
+     "physical": 1016.7,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "deadbolt v cannon": {
+  "name": "Deadbolt V Cannon",
+  "variants": [
+   {
+    "className": "ESPR_BallisticCannon_S5",
+    "damageType": "physical",
+    "dps": {
+     "physical": 1583.3,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "deadbolt vi cannon": {
+  "name": "Deadbolt VI Cannon",
+  "variants": [
+   {
+    "className": "ESPR_BallisticCannon_S6",
+    "damageType": "physical",
+    "dps": {
+     "physical": 2562,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "deathroll s2 gatling": {
+  "name": "Deathroll S2 Gatling",
+  "variants": [
+   {
+    "className": "GLSN_BallisticGatling_S2",
+    "damageType": "physical",
+    "dps": {
+     "physical": 373.3,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "destroyer mass driver cannon": {
+  "name": "Destroyer Mass Driver Cannon",
+  "variants": [
+   {
+    "className": "KLWE_MassDriver_S10",
+    "damageType": "physical",
+    "dps": {
+     "physical": 9610.7,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "dominance-1 scattergun": {
+  "name": "Dominance-1 Scattergun",
+  "variants": [
+   {
+    "className": "HRST_LaserScatterGun_S1",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 420,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "dominance-2 scattergun": {
+  "name": "Dominance-2 Scattergun",
+  "variants": [
+   {
+    "className": "HRST_LaserScatterGun_S2",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 660,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "dominance-3 scattergun": {
+  "name": "Dominance-3 Scattergun",
+  "variants": [
+   {
+    "className": "HRST_LaserScatterGun_S3",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 930,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "draugar gatling": {
+  "name": "Draugar Gatling",
+  "variants": [
+   {
+    "className": "APAR_BallisticGatling_S6",
+    "damageType": "physical",
+    "dps": {
+     "physical": 2848,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "dr model-xj1 repeater": {
+  "name": "DR Model-XJ1 Repeater",
+  "variants": [
+   {
+    "className": "ASAD_DistortionRepeater_S1",
+    "damageType": "distortion",
+    "dps": {
+     "physical": 0,
+     "energy": 0,
+     "distortion": 171.3,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "dr model-xj2 repeater": {
+  "name": "DR Model-XJ2 Repeater",
+  "variants": [
+   {
+    "className": "ASAD_DistortionRepeater_S2",
+    "damageType": "distortion",
+    "dps": {
+     "physical": 0,
+     "energy": 0,
+     "distortion": 256.7,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "dr model-xj3 repeater": {
+  "name": "DR Model-XJ3 Repeater",
+  "variants": [
+   {
+    "className": "ASAD_DistortionRepeater_S3",
+    "damageType": "distortion",
+    "dps": {
+     "physical": 0,
+     "energy": 0,
+     "distortion": 386,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "echion repeater": {
+  "name": "Echion Repeater",
+  "variants": [
+   {
+    "className": "RSI_Meteor_LaserRepeater_S5",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 1266.7,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "evsd cannon": {
+  "name": "EVSD Cannon",
+  "variants": [
+   {
+    "className": "BEHR_DistortionCannon_VNG_S2",
+    "damageType": "distortion",
+    "dps": {
+     "physical": 0,
+     "energy": 0,
+     "distortion": 202.5,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "exodus-10 laser beam": {
+  "name": "Exodus-10 Laser Beam",
+  "variants": [
+   {
+    "className": "HRST_LaserBeam_Bespoke",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 15000,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "fl-11 cannon": {
+  "name": "FL-11 Cannon",
+  "variants": [
+   {
+    "className": "KRON_LaserCannon_S1",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 205.2,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "fl-22 cannon": {
+  "name": "FL-22 Cannon",
+  "variants": [
+   {
+    "className": "KRON_LaserCannon_S2",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 308.5,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "fl-33 cannon": {
+  "name": "FL-33 Cannon",
+  "variants": [
+   {
+    "className": "KRON_LaserCannon_S3",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 461.7,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "gvsr repeater": {
+  "name": "GVSR Repeater",
+  "variants": [
+   {
+    "className": "BEHR_LaserRepeater_S10",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 145833.3,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   },
+   {
+    "className": "BEHR_LaserRepeater_VNG_S2",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 581.7,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "havoc scattergun": {
+  "name": "Havoc Scattergun",
+  "variants": [
+   {
+    "className": "APAR_BallisticScatterGun_S1",
+    "damageType": "physical",
+    "dps": {
+     "physical": 374.4,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "havoc scattergun sharkmouth edition": {
+  "name": "Havoc Scattergun Sharkmouth Edition",
+  "variants": [
+   {
+    "className": "APAR_BallisticScatterGun_S1_Shark",
+    "damageType": "physical",
+    "dps": {
+     "physical": 374.4,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "hellion scattergun": {
+  "name": "Hellion Scattergun",
+  "variants": [
+   {
+    "className": "APAR_BallisticScatterGun_S2",
+    "damageType": "physical",
+    "dps": {
+     "physical": 560,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "hellion scattergun sharkmouth edition": {
+  "name": "Hellion Scattergun Sharkmouth Edition",
+  "variants": [
+   {
+    "className": "APAR_BallisticScatterGun_S2_Shark",
+    "damageType": "physical",
+    "dps": {
+     "physical": 560,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "jericho": {
+  "name": "Jericho",
+  "variants": [
+   {
+    "className": "RPOD_S1_HRST_6x_S1",
+    "damageType": "physical",
+    "dps": {
+     "physical": 150,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "jericho x": {
+  "name": "Jericho X",
+  "variants": [
+   {
+    "className": "RPOD_S2_HRST_12x_S1",
+    "damageType": "physical",
+    "dps": {
+     "physical": 150,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "jericho xl": {
+  "name": "Jericho XL",
+  "variants": [
+   {
+    "className": "RPOD_S3_HRST_18x_S1",
+    "damageType": "physical",
+    "dps": {
+     "physical": 150,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   },
+   {
+    "className": "RPOD_S3_FSKI_9x_S3",
+    "damageType": "physical",
+    "dps": {
+     "physical": 150,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "leonids cannon": {
+  "name": "Leonids Cannon",
+  "variants": [
+   {
+    "className": "RSI_BallisticCannon_S5_Meteor_Bespoke",
+    "damageType": "physical",
+    "dps": {
+     "physical": 1333.3,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "liberator": {
+  "name": "Liberator",
+  "variants": [
+   {
+    "className": "RPOD_S1_THCN_4x_S2",
+    "damageType": "physical",
+    "dps": {
+     "physical": 150,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "liberator prime": {
+  "name": "Liberator Prime",
+  "variants": [
+   {
+    "className": "RPOD_S2_THCN_8x_S2",
+    "damageType": "physical",
+    "dps": {
+     "physical": 150,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "liberator ultra": {
+  "name": "Liberator Ultra",
+  "variants": [
+   {
+    "className": "RPOD_S3_THCN_12x_S2",
+    "damageType": "physical",
+    "dps": {
+     "physical": 150,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "lightstrike i cannon": {
+  "name": "Lightstrike I Cannon",
+  "variants": [
+   {
+    "className": "ESPR_LaserCannon_S1",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 205.2,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "lightstrike ii cannon": {
+  "name": "Lightstrike II Cannon",
+  "variants": [
+   {
+    "className": "ESPR_LaserCannon_S2",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 308.5,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "lightstrike iii cannon": {
+  "name": "Lightstrike III Cannon",
+  "variants": [
+   {
+    "className": "ESPR_LaserCannon_S3",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 461.7,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "lightstrike iv cannon": {
+  "name": "Lightstrike IV Cannon",
+  "variants": [
+   {
+    "className": "ESPR_LaserCannon_S4",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 692.6,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "lightstrike v cannon": {
+  "name": "Lightstrike V Cannon",
+  "variants": [
+   {
+    "className": "ESPR_LaserCannon_S5",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 1036.1,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "lightstrike vi cannon": {
+  "name": "Lightstrike VI Cannon",
+  "variants": [
+   {
+    "className": "ESPR_LaserCannon_S6",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 1558.9,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "m2c \"swarm\"": {
+  "name": "M2C \"Swarm\"",
+  "variants": [
+   {
+    "className": "BEHR_LaserRepeater_PDC_S1",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 166.7,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "m3a cannon": {
+  "name": "M3A Cannon",
+  "variants": [
+   {
+    "className": "BEHR_LaserCannon_S1",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 303.8,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "m3a cannon defense division": {
+  "name": "M3A Cannon Defense Division",
+  "variants": [
+   {
+    "className": "BEHR_LaserCannon_S1_CleanAir",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 303.8,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "m4a cannon": {
+  "name": "M4A Cannon",
+  "variants": [
+   {
+    "className": "BEHR_LaserCannon_S2",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 455.6,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "m4a cannon defense division": {
+  "name": "M4A Cannon Defense Division",
+  "variants": [
+   {
+    "className": "BEHR_LaserCannon_S2_CleanAir",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 455.6,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "m5a cannon": {
+  "name": "M5A Cannon",
+  "variants": [
+   {
+    "className": "BEHR_LaserCannon_S3",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 683.6,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "m5a cannon defense division": {
+  "name": "M5A Cannon Defense Division",
+  "variants": [
+   {
+    "className": "BEHR_LaserCannon_S3_CleanAir",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 683.6,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "m6a cannon": {
+  "name": "M6A Cannon",
+  "variants": [
+   {
+    "className": "BEHR_LaserCannon_S4",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 1025.5,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "m7a cannon": {
+  "name": "M7A Cannon",
+  "variants": [
+   {
+    "className": "BEHR_LaserCannon_S5",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 1536.3,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "m8a cannon": {
+  "name": "M8A Cannon",
+  "variants": [
+   {
+    "className": "BEHR_LaserCannon_S6",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 2305.8,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "m9a cannon": {
+  "name": "M9A Cannon",
+  "variants": [
+   {
+    "className": "BEHR_MassDriver_S12",
+    "damageType": "physical",
+    "dps": {
+     "physical": 33333.3,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   },
+   {
+    "className": "BEHR_LaserCannon_S9",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 7784.1,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   },
+   {
+    "className": "BEHR_LaserCannon_S7_Idris_M",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 11250,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   },
+   {
+    "className": "BEHR_JavelinBallisticCannon_S7",
+    "damageType": "physical",
+    "dps": {
+     "physical": 3843.9,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   },
+   {
+    "className": "BEHR_LaserCannon_S7",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 3459.5,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   },
+   {
+    "className": "BEHR_LaserCannon_S8",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 5189.4,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "mantis gt-220 gatling": {
+  "name": "Mantis GT-220 Gatling",
+  "variants": [
+   {
+    "className": "GATS_BallisticGatling_S3",
+    "damageType": "physical",
+    "dps": {
+     "physical": 853.3,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "maris cannon": {
+  "name": "Maris Cannon",
+  "variants": [
+   {
+    "className": "RSI_Bespoke_BallisticCannon_A",
+    "damageType": "physical",
+    "dps": {
+     "physical": 2833.3,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "mrx \"torrent\"": {
+  "name": "MRX \"Torrent\"",
+  "variants": [
+   {
+    "className": "BEHR_BallisticGatling_PDC_S1",
+    "damageType": "physical",
+    "dps": {
+     "physical": 360,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "mvsa cannon": {
+  "name": "MVSA Cannon",
+  "variants": [
+   {
+    "className": "BEHR_LaserCannon_VNG_S2",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 455,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "ndb-26 repeater": {
+  "name": "NDB-26 Repeater",
+  "variants": [
+   {
+    "className": "MXOX_NeutronRepeater_S1",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 316.5,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "ndb-28 repeater": {
+  "name": "NDB-28 Repeater",
+  "variants": [
+   {
+    "className": "MXOX_NeutronRepeater_S2",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 474.8,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "ndb-30 repeater": {
+  "name": "NDB-30 Repeater",
+  "variants": [
+   {
+    "className": "MXOX_NeutronRepeater_S3",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 712.5,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "nn-13 cannon": {
+  "name": "NN-13 Cannon",
+  "variants": [
+   {
+    "className": "MXOX_NeutronCannon_S1",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 253,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "nn-14 cannon": {
+  "name": "NN-14 Cannon",
+  "variants": [
+   {
+    "className": "MXOX_NeutronCannon_S2",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 382,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "nn-15 cannon": {
+  "name": "NN-15 Cannon",
+  "variants": [
+   {
+    "className": "MXOX_NeutronCannon_S3",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 551.8,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "nv57 ballistic gatling": {
+  "name": "NV57 Ballistic Gatling",
+  "variants": [
+   {
+    "className": "BEHR_Nova_BallisticGatling_S5",
+    "damageType": "physical",
+    "dps": {
+     "physical": 3250,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "omnisky iii cannon": {
+  "name": "Omnisky III Cannon",
+  "variants": [
+   {
+    "className": "AMRS_LaserCannon_S1",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 243,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "omnisky ix cannon": {
+  "name": "Omnisky IX Cannon",
+  "variants": [
+   {
+    "className": "AMRS_LaserCannon_S3",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 546.8,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "omnisky vi cannon": {
+  "name": "Omnisky VI Cannon",
+  "variants": [
+   {
+    "className": "AMRS_LaserCannon_S2",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 364.5,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "omnisky xii cannon": {
+  "name": "Omnisky XII Cannon",
+  "variants": [
+   {
+    "className": "AMRS_LaserCannon_S4",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 819.7,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "omnisky xv cannon": {
+  "name": "Omnisky XV Cannon",
+  "variants": [
+   {
+    "className": "AMRS_LaserCannon_S5",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 1230.4,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "omnisky xviii cannon": {
+  "name": "Omnisky XVIII Cannon",
+  "variants": [
+   {
+    "className": "AMRS_LaserCannon_S6",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 1846,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "predator scattergun": {
+  "name": "Predator Scattergun",
+  "variants": [
+   {
+    "className": "APAR_BallisticScatterGun_S3",
+    "damageType": "physical",
+    "dps": {
+     "physical": 840,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "predator scattergun sharkmouth edition": {
+  "name": "Predator Scattergun Sharkmouth Edition",
+  "variants": [
+   {
+    "className": "APAR_BallisticScatterGun_S3_Shark",
+    "damageType": "physical",
+    "dps": {
+     "physical": 840,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "pyroburst scattergun": {
+  "name": "PyroBurst Scattergun",
+  "variants": [
+   {
+    "className": "AMRS_AAgun_CC_S3",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 277.3,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   },
+   {
+    "className": "AMRS_ScatterGun_S3",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 462,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "quarreler cannon": {
+  "name": "Quarreler Cannon",
+  "variants": [
+   {
+    "className": "KRIG_LaserCannon_S3",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 546.8,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "reign-3 repeater": {
+  "name": "Reign-3 Repeater",
+  "variants": [
+   {
+    "className": "HRST_Storm_LaserRepeater_S3",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 2041.7,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "relentless l-21 gatling": {
+  "name": "Relentless L-21 Gatling",
+  "variants": [
+   {
+    "className": "Krig_BallisticGatling_Bespoke_S4",
+    "damageType": "physical",
+    "dps": {
+     "physical": 997.5,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "revenant gatling": {
+  "name": "Revenant Gatling",
+  "variants": [
+   {
+    "className": "ANVL_BallisticGatling_Bespoke",
+    "damageType": "physical",
+    "dps": {
+     "physical": 1054,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   },
+   {
+    "className": "Bengal_BallisticGatling_S6",
+    "damageType": "physical",
+    "dps": {
+     "physical": 2848.5,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   },
+   {
+    "className": "APAR_BallisticGatling_S4",
+    "damageType": "physical",
+    "dps": {
+     "physical": 1266,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "rsi medusa cannon": {
+  "name": "RSI Medusa Cannon",
+  "variants": [
+   {
+    "className": "RSI_Perseus_BallisticCannon_B_S8",
+    "damageType": "physical",
+    "dps": {
+     "physical": 4500,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "salvation distortion scattergun": {
+  "name": "Salvation Distortion Scattergun",
+  "variants": [
+   {
+    "className": "PRAR_DistortionScatterGun_S4",
+    "damageType": "distortion",
+    "dps": {
+     "physical": 0,
+     "energy": 0,
+     "distortion": 480,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "scorpion gt-215 gatling": {
+  "name": "Scorpion GT-215 Gatling",
+  "variants": [
+   {
+    "className": "GATS_BallisticGatling_S2",
+    "damageType": "physical",
+    "dps": {
+     "physical": 338.7,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "sf7b gatling": {
+  "name": "SF7B Gatling",
+  "variants": [
+   {
+    "className": "BEHR_BallisticGatling_S7_Collector",
+    "damageType": "physical",
+    "dps": {
+     "physical": 4320,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   },
+   {
+    "className": "BEHR_BallisticGatling_S7",
+    "damageType": "physical",
+    "dps": {
+     "physical": 4320,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "sf7e cannon": {
+  "name": "SF7E Cannon",
+  "variants": [
+   {
+    "className": "BEHR_LaserCannon_SF7E_S7",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 4720.8,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   },
+   {
+    "className": "BEHR_LaserCannon_SF7E_S7_Collector",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 4720.8,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "singe cannon (s1)": {
+  "name": "Singe Cannon (S1)",
+  "variants": [
+   {
+    "className": "BANU_TachyonCannon_S1",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 202.5,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "singe cannon (s2)": {
+  "name": "Singe Cannon (S2)",
+  "variants": [
+   {
+    "className": "BANU_TachyonCannon_S2",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 270.1,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "singe cannon (s3)": {
+  "name": "Singe Cannon (S3)",
+  "variants": [
+   {
+    "className": "BANU_TachyonCannon_S3",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 405,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "slayer cannon": {
+  "name": "Slayer Cannon",
+  "variants": [
+   {
+    "className": "HRST_Nova_BallisticCannon_S5",
+    "damageType": "physical",
+    "dps": {
+     "physical": 6400,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   },
+   {
+    "className": "Bengal_Turret_BallisticCannon_S8",
+    "damageType": "physical",
+    "dps": {
+     "physical": 3700,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "sledge iii mass driver cannon": {
+  "name": "Sledge III Mass Driver Cannon",
+  "variants": [
+   {
+    "className": "KLWE_MassDriver_S3",
+    "damageType": "physical",
+    "dps": {
+     "physical": 450,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "sledge ii mass driver cannon": {
+  "name": "Sledge II Mass Driver Cannon",
+  "variants": [
+   {
+    "className": "KLWE_MassDriver_S2",
+    "damageType": "physical",
+    "dps": {
+     "physical": 350,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "sledge i mass driver cannon": {
+  "name": "Sledge I Mass Driver Cannon",
+  "variants": [
+   {
+    "className": "KLWE_MassDriver_S1",
+    "damageType": "physical",
+    "dps": {
+     "physical": 225,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "snapper s2 repeater": {
+  "name": "Snapper S2 Repeater",
+  "variants": [
+   {
+    "className": "GLSN_LaserRepeater_S2",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 350,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "strife mass driver cannon": {
+  "name": "Strife Mass Driver Cannon",
+  "variants": [
+   {
+    "className": "APAR_MassDriver_S2",
+    "damageType": "physical",
+    "dps": {
+     "physical": 210,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "suckerpunch cannon": {
+  "name": "Suckerpunch Cannon",
+  "variants": [
+   {
+    "className": "JOKR_DistortionCannon_S1",
+    "damageType": "distortion",
+    "dps": {
+     "physical": 0,
+     "energy": 0,
+     "distortion": 135,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "suckerpunch-l cannon": {
+  "name": "Suckerpunch-L Cannon",
+  "variants": [
+   {
+    "className": "JOKR_DistortionCannon_S2",
+    "damageType": "distortion",
+    "dps": {
+     "physical": 0,
+     "energy": 0,
+     "distortion": 202.5,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "suckerpunch-xl cannon": {
+  "name": "Suckerpunch-XL Cannon",
+  "variants": [
+   {
+    "className": "JOKR_DistortionCannon_S3",
+    "damageType": "distortion",
+    "dps": {
+     "physical": 0,
+     "energy": 0,
+     "distortion": 304.2,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "supremacy-10t laser beam": {
+  "name": "Supremacy-10T Laser Beam",
+  "variants": [
+   {
+    "className": "HRST_LaserBeam_Tiburon",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 18000,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "suregrip th2 tractor beam": {
+  "name": "SureGrip TH2 Tractor Beam",
+  "variants": [
+   {
+    "className": "RSI_Constellation_Taurus_Tractor_Beam",
+    "damageType": null,
+    "dps": {
+     "physical": 0,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "sw16br1 “buzzsaw” repeater": {
+  "name": "SW16BR1 “Buzzsaw” Repeater",
+  "variants": [
+   {
+    "className": "BEHR_BallisticRepeater_S1",
+    "damageType": "physical",
+    "dps": {
+     "physical": 150,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "sw16br2 “sawbuck” repeater": {
+  "name": "SW16BR2 “Sawbuck” Repeater",
+  "variants": [
+   {
+    "className": "BEHR_BallisticRepeater_S2",
+    "damageType": "physical",
+    "dps": {
+     "physical": 200,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "sw16br3 “shredder” repeater": {
+  "name": "SW16BR3 “Shredder” Repeater",
+  "variants": [
+   {
+    "className": "BEHR_BallisticRepeater_S3",
+    "damageType": "physical",
+    "dps": {
+     "physical": 375,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "tarantula gt-870 mark 1 cannon": {
+  "name": "Tarantula GT-870 Mark 1 Cannon",
+  "variants": [
+   {
+    "className": "GATS_BallisticCannon_S1",
+    "damageType": "physical",
+    "dps": {
+     "physical": 202.5,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "tarantula gt-870 mark 2 cannon": {
+  "name": "Tarantula GT-870 Mark 2 Cannon",
+  "variants": [
+   {
+    "className": "GATS_BallisticCannon_S2",
+    "damageType": "physical",
+    "dps": {
+     "physical": 304.2,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "tarantula gt-870 mark 3 cannon": {
+  "name": "Tarantula GT-870 Mark 3 Cannon",
+  "variants": [
+   {
+    "className": "Bengal_BallisticCannon_S8",
+    "damageType": "physical",
+    "dps": {
+     "physical": 6407,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   },
+   {
+    "className": "GATS_BallisticCannon_S3",
+    "damageType": "physical",
+    "dps": {
+     "physical": 455.4,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   },
+   {
+    "className": "Bengal_BallisticCannon_S7",
+    "damageType": "physical",
+    "dps": {
+     "physical": 4271,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "thlilye laser gatling": {
+  "name": "Thlilye Laser Gatling",
+  "variants": [
+   {
+    "className": "TOAG_LaserGatling_S2",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 313.5,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "tigerstrike t-19p": {
+  "name": "Tigerstrike T-19P",
+  "variants": [
+   {
+    "className": "KRIG_BallisticGatling_S2",
+    "damageType": "physical",
+    "dps": {
+     "physical": 450,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "tmsb-5 gatling": {
+  "name": "TMSB-5 Gatling",
+  "variants": [
+   {
+    "className": "BEHR_BallisticGatling_Hornet_Bespoke",
+    "damageType": "physical",
+    "dps": {
+     "physical": 922.3,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "tormenter s3 repeater": {
+  "name": "Tormenter S3 Repeater",
+  "variants": [
+   {
+    "className": "GLSN_LaserRepeater_S3",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 493.8,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "vanduul mauler 'annihilator' cannon": {
+  "name": "Vanduul Mauler 'ANNIHILATOR' Cannon",
+  "variants": [
+   {
+    "className": "VNCL_Gen2_TachyonBeam_S10",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 15000,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "vanduul mauler 'eradicator' cannon": {
+  "name": "Vanduul Mauler 'ERADICATOR' Cannon",
+  "variants": [
+   {
+    "className": "VNCL_Gen2_TachyonCannon_S7",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 125,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "vanduul mauler 'igniter' beam": {
+  "name": "Vanduul Mauler 'IGNITER' Beam",
+  "variants": [
+   {
+    "className": "VNCL_Gen2_LaserBeam_S9",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 15000,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "vanduul mauler 'rage' cannon": {
+  "name": "Vanduul Mauler 'RAGE' Cannon",
+  "variants": [
+   {
+    "className": "VNCL_Gen2_PlasmaCannon_S8",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 4671.3,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "vanduul mauler 'striker' repeater": {
+  "name": "Vanduul Mauler 'STRIKER' Repeater",
+  "variants": [
+   {
+    "className": "VNCL_Gen2_LaserRepeater_S6",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 800,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "'war' cannon": {
+  "name": "'WAR' Cannon",
+  "variants": [
+   {
+    "className": "VNCL_NeutronCannon_S5",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 1890,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "'warlord' cannon": {
+  "name": "'WARLORD' Cannon",
+  "variants": [
+   {
+    "className": "VNCL_PlasmaCannon_S3",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 877.5,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "'wasp' repeater": {
+  "name": "'WASP' Repeater",
+  "variants": [
+   {
+    "className": "VNCL_LaserCannon_S2",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 519.7,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "'weak' repeater": {
+  "name": "'WEAK' Repeater",
+  "variants": [
+   {
+    "className": "VNCL_LaserCannon_S1",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 291.7,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "'whip' cannon": {
+  "name": "'WHIP' Cannon",
+  "variants": [
+   {
+    "className": "VNCL_PlasmaCannon_S2",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 455.2,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "whiptail str-e2 repeater": {
+  "name": "Whiptail STR-E2 Repeater",
+  "variants": [
+   {
+    "className": "KRIG_LaserRepeater_Bespoke_S2",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 90,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "'wrath' cannon": {
+  "name": "'WRATH' Cannon",
+  "variants": [
+   {
+    "className": "VNCL_Gen2_PlasmaCannon_S5",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 810,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   },
+   {
+    "className": "VNCL_PlasmaCannon_S5",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 808.3,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "yebira i": {
+  "name": "Yebira I",
+  "variants": [
+   {
+    "className": "RPOD_S1_FSKI_3x_S3",
+    "damageType": "physical",
+    "dps": {
+     "physical": 150,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "yebira ii": {
+  "name": "Yebira II",
+  "variants": [
+   {
+    "className": "RPOD_S2_FSKI_6x_S3",
+    "damageType": "physical",
+    "dps": {
+     "physical": 150,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "yellowjacket gt-210 gatling": {
+  "name": "YellowJacket GT-210 Gatling",
+  "variants": [
+   {
+    "className": "GATS_BallisticGatling_Mounted_S1",
+    "damageType": "physical",
+    "dps": {
+     "physical": 201.6,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   },
+   {
+    "className": "GATS_BallisticGatling_S1",
+    "damageType": "physical",
+    "dps": {
+     "physical": 201.6,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   },
+   {
+    "className": "GATS_BallisticGatling_Mounted_S1_DRAK_Cutlass_Steel",
+    "damageType": "physical",
+    "dps": {
+     "physical": 201.6,
+     "energy": 0,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ },
+ "yeng’tu repeater": {
+  "name": "Yeng’tu Repeater",
+  "variants": [
+   {
+    "className": "TOAG_LaserRepeater_S3",
+    "damageType": "energy",
+    "dps": {
+     "physical": 0,
+     "energy": 512.5,
+     "distortion": 0,
+     "thermal": 0,
+     "biochemical": 0,
+     "stun": 0
+    }
+   }
+  ]
+ }
+}

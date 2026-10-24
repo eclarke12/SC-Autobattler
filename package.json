@@ -8,6 +8,7 @@
     "probe": "node scripts/probe.mjs",
     "audit:bombs": "node scripts/audit-bomb-racks.mjs",
     "build:data": "node scripts/build-data.mjs",
+    "build:weapon-damage": "node scripts/build-weapon-damage.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "dev": "vite",

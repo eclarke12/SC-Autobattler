@@ -57,8 +57,35 @@ Artifacts: `scripts/probe.mjs`, `scripts/probe2.mjs`, `scripts/probe3.mjs` → `
 | crew | `crew.{min, max}` | |
 | isSpaceship | `is_spaceship` | filter: true AND fixed_weapons+ manned weapons ≥ 1 |
 
-### Weapon damage-type heuristic (API exposes none for fixed weapons)
-`/cannon|gatling|scattergun|mortar|railgun|shredder|gun|projectile/i` → **physical**; `/repeater|laser|pulse|beam|particle/i` → **energy**; default **physical**. (Verified: "CF-337 Panther Repeater"=laser→energy, "M7A Cannon"=ballistic→physical, "Revenant Gatling"=ballistic→physical.)
+### Weapon damage type (API-derived since 2026-10-24; was a name heuristic — that heuristic was WRONG)
+
+The ships payload's fixed-weapon entries carry only `{name, dps, alpha}` (no class_name,
+no per-type damage), so the MVP classified types from the display name:
+`/cannon|gatling|…/ → physical`. **"M7A Cannon" matched "cannon" and was shipped as
+ballistic — it is `BEHR_LaserCannon_S5`, an energy laser cannon** (`vehicle_weapon.damage.dps
+= {physical: 0, energy: 1536.3}`). Same class of bug fleet-wide: "Omnisky IX Cannon",
+"M5A–M9A Cannon", "FL-11 Cannon" etc. = laser cannons (energy); reverse direction too —
+"BRVS Repeater"/"SW16BR2 Sawbuck Repeater" = ballistic repeaters (physical);
+"ATVS Repeater"/"Suckerpunch Cannon" = distortion (fleet: 9 distortion guns, Vanguard
+Sentinel/Hawk). The old "(Verified: …"M7A Cannon"=ballistic→physical…)" note was itself
+the misclassification — name tokens are not damage types.
+
+Pipeline now: `npm run build:weapon-damage` (scripts/build-weapon-damage.mjs) pages
+`/api/items?filter[type]=WeaponGun` (174 items) and caches per-gun per-type dps in
+`data/weapon-damage-cache.json`, keyed by lowercase display name with ALL same-name
+variants. build-data.mjs joins every weapon by exact lowercase name → dominant type
+(argmax per-type dps). Display names can be genuinely ambiguous ("M9A Cannon" spans an
+S12 mass driver, S7–S9 laser cannons, and a Javelin S7 ballistic cannon); same-name
+variants are disambiguated by exact per-gun dps (≤2% — exact when the loadout has no
+DPS-modding attachments; attachment-buffed payload dps can miss, which is reported as
+`WARN ambiguous`). Unjoinable internal labels (`port_NameTurretNN`, radar/cover
+SCItems on 11 mounts) fall back to the legacy name regex and are reported
+(`damage-type regex fallbacks`). A missing/invalid cache hard-exits the build (silent
+degradation to the regex shipped the M7A bug).
+
+Post-fix fleet (228 ships): physical 191 / energy 727 / distortion 9 weapon rows;
+ammo follows type (energy/distortion draw ship power → null; physical → size-class table).
+Regression lock: engine.test.ts "data: authoritative gun damage types".
 
 ### Weapon power assumption (API exposes no per-weapon power in `weaponry`)
 Fixed weapons have no power fields. Use declared tunable per-ship: total fixed-weapon power draw is **assumed powered at nominal**; the weapons slider scales DPS from 0..1 across `0..weaponPool` segments (`dpsScale = powerToWeapons / max(1, ceil(Σdps/500))`-style ratio — engine-side tunable, documented in constants.ts). Turret power: each manned turret assumed to need 1 segment.

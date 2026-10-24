@@ -92,6 +92,37 @@ function syn(name: string, opts: {
   };
 }
 
+describe('data: authoritative gun damage types (2026-10-24 M7A classification fix)', () => {
+  type GunVariant = { className: string; damageType: string | null; dps: Record<string, number> };
+  const weaponDamage = JSON.parse(readFileSync(new URL('../../data/weapon-damage-cache.json', import.meta.url), 'utf8')) as
+    Record<string, { name: string; variants: GunVariant[] }>;
+  it('every joinable gun in the snapshot carries a type the API endorses for that display name', () => {
+    const offenders: string[] = [];
+    for (const s of ships) {
+      for (const w of s.weapons) {
+        const entry = weaponDamage[w.name.trim().toLowerCase()];
+        if (!entry) continue;
+        const types = new Set(entry.variants.map((v) => v.damageType).filter((t): t is string => t !== null));
+        if (types.size > 0 && !types.has(w.damageType)) offenders.push(`${s.name} | ${w.name} | ${w.damageType}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+  it('M7A Cannon (BEHR_LaserCannon_S5, laser cannon) is energy — not ballistic', () => {
+    const rows = ships.flatMap((s) => s.weapons.filter((w) => w.name === 'M7A Cannon'));
+    expect(rows.length).toBeGreaterThan(0);
+    for (const w of rows) {
+      expect(w.damageType).toBe('energy');
+      expect(w.ammo).toBeNull();
+    }
+  });
+  it('non-physical guns never carry finite ammo (energy draws ship power; alpha-0 depletion unknown)', () => {
+    for (const s of ships) {
+      for (const w of s.weapons) if (w.damageType !== 'physical') expect(w.ammo, `${s.name} ${w.name}`).toBeNull();
+    }
+  });
+});
+
 describe('golden battles', () => {
   it('Hammerhead vs Gladius: armor gate zeroes the small guns, Hammerhead wins (seed 42)', () => {
     const result = simulate(fullConfig(findShip('Hammerhead')), fullConfig(findShip('Gladius')), 42);
@@ -110,9 +141,12 @@ describe('golden battles', () => {
     // GOLDEN REGENERATED 2026-10-22 (T19): Stalker dpsScale is the pool fraction
     // (powerToWeapons/weaponPool = 1 at full pips, was 0.8 under the DPS/500 demand
     // heuristic) — +25% damage leaves the Gladius shield nearly collapsed (~866/6336).
+    // GOLDEN REGENERATED 2026-10-24 (damage-type fix): the Stalker's 2× "Omnisky IX
+    // Cannon" are energy laser cannons (API vehicle_weapon.damage.dps), not ballistic —
+    // their fire no longer leaks past the shield onto armor, and the full shield
+    // pressure (energy 100% + ballistic 22.5%) collapses the pool to 0 in round 1.
     expect(r1.b.armorAfter).toBe(0);
-    expect(r1.b.shieldAfter).toBeGreaterThan(0);
-    expect(r1.b.shieldAfter).toBeLessThan(r1.b.shieldBefore * 0.2);
+    expect(r1.b.shieldAfter).toBe(0);
     expect(r1.b.hullAfter).toBeLessThan(0);
     // Gladius's return fire melts the glass-cannon Stalker the same round → mutual destruction.
     expect(result.winner).toBe('draw');

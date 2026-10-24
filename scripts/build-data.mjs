@@ -6,6 +6,7 @@ const BASE = 'https://api.star-citizen.wiki/api';
 const OUT_DIR = 'data';
 const OUT_FILE = `${OUT_DIR}/ships.json`;
 const CACHE_FILE = `${OUT_DIR}/components-cache.json`;
+const WEAPON_DMG_FILE = `${OUT_DIR}/weapon-damage-cache.json`;
 const GUN_AMMO_SIZES_FILE = `${OUT_DIR}/gun-ammo-sizes.json`;
 
 const DAMAGE_TYPES = ['physical', 'energy', 'distortion', 'thermal', 'biochemical', 'stun'];
@@ -98,9 +99,54 @@ const shipSchema = z.object({
   crew: z.object({ min: z.number().int().nonnegative(), max: z.number().int().nonnegative() }),
 });
 
+// Damage type comes from the API's per-type dps on the gun item
+// (`vehicle_weapon.damage.dps`, imported by scripts/build-weapon-damage.mjs) — the
+// name-regex classifier this replaces misclassified energy laser CANNONS as
+// ballistic: "M7A Cannon" is BEHR_LaserCannon_S5 (docs/data-notes.md §4). Display
+// names can span sizes/types ("M9A Cannon" = S12 mass driver, S7–S9 laser cannons,
+// Javelin S7 ballistic), so same-name variants are disambiguated by the per-gun
+// dps in the ship payload. Unjoinable labels (internal mount/radar names like
+// "port_NameTurret09") fall back to the legacy name heuristic and are reported.
 const PHYSICAL_NAME = /cannon|gatling|scatter ?gun|mortar|rail ?gun|shredder|projectile|gun|point ?defense/i;
 const ENERGY_NAME = /repeater|laser|pulse|beam|particle|photon|disrupt/i;
-function damageTypeFor(name) {
+const weaponDamageCacheSchema = z.record(z.object({
+  name: z.string().min(1),
+  variants: z.array(z.object({
+    className: z.string().min(1),
+    damageType: z.enum(DAMAGE_TYPES).nullable(),
+    dps: z.record(damageTypeSchema, z.number()),
+  })).min(1),
+}));
+// Hard-exit when missing: classification silently degrades to the name regex
+// (the exact bug that shipped M7A as ballistic), so a stale/absent cache must fail loudly.
+let weaponDamage;
+try {
+  weaponDamage = weaponDamageCacheSchema.parse(JSON.parse(readFileSync(WEAPON_DMG_FILE, 'utf8')));
+} catch (e) {
+  console.error(`FATAL: cannot read/validate ${WEAPON_DMG_FILE} (regenerate via npm run build:weapon-damage): ${e.message}`);
+  process.exit(1);
+}
+const typeFallbacks = new Map();
+const typeAmbiguous = new Map();
+function damageTypeFor(name, gunDps) {
+  const entry = weaponDamage[name.trim().toLowerCase()];
+  if (entry) {
+    const types = [...new Set(entry.variants.map((v) => v.damageType).filter((t) => t !== null))];
+    if (types.length === 1) return types[0];
+    if (types.length > 1) {
+      // Variant dps vectors are per-type records; compare the dominant type's own
+      // dps value against the ship payload's per-gun dps (exact within 2% when
+      // the loadout ships no DPS-modding attachments).
+      const dps = num(gunDps, 0);
+      const exact = entry.variants.find(
+        (v) => v.damageType && Math.abs((v.dps[v.damageType] ?? 0) - dps) <= Math.max(0.5, 0.02 * dps),
+      );
+      if (exact?.damageType) return exact.damageType;
+      typeAmbiguous.set(name, (typeAmbiguous.get(name) ?? 0) + 1);
+      return types[0];
+    }
+  }
+  typeFallbacks.set(name, (typeFallbacks.get(name) ?? 0) + 1);
   if (PHYSICAL_NAME.test(name)) return 'physical';
   if (ENERGY_NAME.test(name)) return 'energy';
   return 'physical';
@@ -373,7 +419,7 @@ function normalize(ship) {
     .filter((w) => num(w.dps, 0) > 0)
     .map((w) => {
       const label = w.name ?? 'Unknown weapon';
-      const damageType = damageTypeFor(label);
+      const damageType = damageTypeFor(label, w.dps);
       const alpha = num(w.alpha, 0);
       return {
         name: label,
@@ -388,7 +434,7 @@ function normalize(ship) {
   const manned = (ship.turrets?.manned ?? []).map((t, i) => {
     const label = t.weapons?.[0]?.name ?? t.class_name ?? t.display_name ?? `Turret ${i + 1}`;
     const maxAlpha = Math.max(0, ...(t.weapons ?? []).map((w) => num(w.alpha, 0)));
-    const damageType = damageTypeFor(label);
+    const damageType = damageTypeFor(label, num(t.weapons?.[0]?.dps, 0));
     return {
       name: label,
       type: 'turret',
@@ -541,6 +587,13 @@ for (const s of ships) for (const m of s.turretMounts) mountsByKind[m.kind] = (m
 const bySize = {};
 for (const s of ships) bySize[s.sizeClass] = (bySize[s.sizeClass] ?? 0) + 1;
 console.log(`wrote ${OUT_FILE}: ${ships.length} ships | unarmed-filtered=${unarmed} | images=${withImages} | manned-turret ships=${withTurrets} | turretMounts ships=${withMounts} entries=${JSON.stringify(mountsByKind)} | sizes=${JSON.stringify(bySize)}`);
+
+// Damage-type join report (authoritative cache → name-regex fallback for unjoinable labels).
+const typeCounts = {};
+for (const s of ships) for (const w of s.weapons) typeCounts[w.damageType] = (typeCounts[w.damageType] ?? 0) + 1;
+console.log(`weapon damageTypes: ${JSON.stringify(typeCounts)}`);
+console.log(`damage-type regex fallbacks (unjoinable labels): ${typeFallbacks.size} names / ${[...typeFallbacks.values()].reduce((t, n) => t + n, 0)} weapons${typeFallbacks.size ? ': ' + [...typeFallbacks.keys()].join(', ') : ''}`);
+if (typeAmbiguous.size) console.log(`WARN ambiguous display names (multi-type, dps join missed, took first variant): ${[...typeAmbiguous.entries()].map(([n, c]) => `${n}×${c}`).join(', ')}`);
 
 // T18 component-join fleet stats (report to docs/data-notes.md).
 const pctl = (arr, p) => {
