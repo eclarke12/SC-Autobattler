@@ -34,7 +34,7 @@ import {
 import type { ShipComponent, ShipConfig, ShipData } from '../engine/types';
 import type { SideKnobs } from '../url';
 import { ComponentBlocks, ComponentRow, PowerBlocks } from './PowerBlocks';
-import { fixedGunPairings, turretMountMatcher } from './turretMounts';
+import { fixedGunPairings, turretMountMatcher, TURRET_COMPONENT_TYPES } from './turretMounts';
 
 /** T24 rack aggregation key: rack model name with the loadout tokens stripped
  *  ("12xS3", "Quad S5", "Quad", "S4") so identical racks group into "xN" lines
@@ -159,10 +159,27 @@ export function LoadoutPanel({ config, opponent, onChange, onPdcToggle }: {
   const gunPair = fixedGunPairings(ship, weaponComps, turretMountMatcher(ship));
   const missileGroups = missileRackGroups(weaponComps);
 
-  const sizeGrade = (c: ShipComponent) => `${c.size != null ? `S${c.size}` : ''}${c.grade != null ? ` G${c.grade}` : ''}`;
+  // Component tag per SC convention: "S1 Civ A" = size 1, Civilian class, grade A
+  // (wiki letters, G1 = A). Turret-family components show size only (2026-10-24:
+  // the grade/class on turret mounts is not a meaningful knob — only the size matters).
+  const classAbbr = (cls: string) =>
+    ({ Military: 'Mil', Civilian: 'Civ', Industrial: 'Ind', Stealth: 'Sth', Competition: 'Cmp', Research: 'Res', Medical: 'Med', Security: 'Sec', Salvage: 'Salv', 'Law Enforcement': 'LE' })[cls] ?? cls.slice(0, 3);
+  const compTag = (c: ShipComponent) => {
+    const parts: string[] = [];
+    if (c.size != null) parts.push(`S${c.size}`);
+    if (!TURRET_COMPONENT_TYPES.has(c.type)) {
+      if (c.cls) parts.push(classAbbr(c.cls));
+      if (c.grade) parts.push(c.grade);
+    }
+    return parts.join(' ');
+  };
+  const compTagTitle = (c: ShipComponent) => {
+    const bits = [c.size != null ? `Size ${c.size}` : null, TURRET_COMPONENT_TYPES.has(c.type) ? 'turret mounts: size only' : c.cls ? `Class: ${c.cls}` : 'Class: unclassified', c.grade ? `Grade ${c.grade}` : 'Grade: unknown'].filter(Boolean);
+    return bits.join(' · ');
+  };
   const rangeText = (c: ShipComponent) => `${fmtPip(minOnlineOf(c))}–${fmtPip(fullDrawOf(c))}`;
   const typeLabel = (c: ShipComponent) => (
-    <>{c.type}: {c.name}{sizeGrade(c) && <em className="comp-sg"> {sizeGrade(c)}</em>}</>
+    <>{c.type}: {c.name}{compTag(c) && <em className="comp-sg" title={compTagTitle(c)}> {compTag(c)}</em>}</>
   );
 
   return (
@@ -367,7 +384,7 @@ export function LoadoutPanel({ config, opponent, onChange, onPdcToggle }: {
               >
                 <span>
                   <input type="checkbox" checked={shieldOns[i]} onChange={(e) => toggleShield(i, e.target.checked)} />
-                  {' '}{c.type}: {c.name}{sizeGrade(c) && <em className="comp-sg"> {sizeGrade(c)}</em>} — {rangeText(c)} pips{shieldOns[i] ? ' · ON' : ' · OFF'}
+                  {' '}{c.type}: {c.name}{compTag(c) && <em className="comp-sg" title={compTagTitle(c)}> {compTag(c)}</em>} — {rangeText(c)} pips{shieldOns[i] ? ' · ON' : ' · OFF'}
                 </span>
               </label>
             ))}

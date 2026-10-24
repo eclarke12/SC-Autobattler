@@ -39,7 +39,12 @@ export interface ShipComponent {
   name: string;
   className: string;
   size: number | null;
-  grade: number | null;
+  /** Wiki letter grade, A (best) … E; the ports-tree numeric grade maps G1→A, G3→C.
+   *  null = unknown. Displayed as the `S<n> <class> <grade>` tag (turrets: size only). */
+  grade: 'A' | 'B' | 'C' | 'D' | 'E' | null;
+  /** Component class from the API (`Military` / `Civilian` / `Industrial` / `Stealth`
+   *  / …), null = unclassified. UI abbreviates: Mil/Civ/Ind/Sth/Cmp. */
+  cls: string | null;
   /** null = component has no power draw data. */
   power: ShipResourceRange | null;
   coolant: ShipResourceRange | null;

@@ -232,7 +232,7 @@ describe('golden battles', () => {
  *  baseline/pip-scarcity describe. */
 function comp(type: string, minOnline: number, fullDraw: number | null): ShipComponent {
   return {
-    type, name: `${type} Mk I`, className: `test.${type}`, size: null, grade: null,
+    type, name: `${type} Mk I`, className: `test.${type}`, size: null, grade: null, cls: null,
     power: fullDraw === null ? null : { minOnline, fullDraw },
     coolant: null,
     generation: { power: null, coolant: null },
@@ -1366,7 +1366,7 @@ describe('T25 fixed-gun mount fallback (declared UI heuristic, src/components/tu
   it('mounts > guns pairs the first rows only; fixed guns named on a matched mount are excluded', () => {
     const base = syn('FGPair', { health: 100, armor: 0, shield: 0, regen: 0, fixedDps: 0 });
     const turretComp = (name: string): ShipComponent =>
-      ({ type: 'Turret', name, className: 'FG_Mount', size: 3, grade: null, power: null, coolant: null, generation: { power: null, coolant: null } });
+      ({ type: 'Turret', name, className: 'FG_Mount', size: 3, grade: null, cls: null, power: null, coolant: null, generation: { power: null, coolant: null } });
     const fixedGun = (name: string, dps: number, alpha: number) =>
       ({ name, type: 'fixed' as const, damageType: 'physical' as const, dps, alpha, power: 1, ammo: null });
     // 3 Turret rows share one className; only the first has an API mount entry.

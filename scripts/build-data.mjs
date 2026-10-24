@@ -17,13 +17,17 @@ const damageTypeSchema = z.enum(DAMAGE_TYPES);
 // Component power join (T18, plan-power-components): every equipped_item on every ship
 // becomes a ShipComponent; power/coolant/generation come from the T17 item cache keyed
 // by class_name. minOnline/fullDraw naming per confirmed decision (nested per-resource).
+// Grade is the wiki LETTER grade (A = best, G1 = A, G3 = C); `cls` is the component
+// class (Military/Civilian/Industrial/Stealth/Competition, null = unclassified) — both
+// from the T17 cache (2026-10-24), ports-tree numeric grade as letter fallback.
 const resourceRangeSchema = z.object({ minOnline: z.number().nonnegative(), fullDraw: z.number().nonnegative() });
 const componentSchema = z.object({
   type: z.string().min(1),
   name: z.string(),
   className: z.string().min(1),
   size: z.number().int().nullable(),
-  grade: z.number().int().nullable(),
+  grade: z.enum(['A', 'B', 'C', 'D', 'E']).nullable(),
+  cls: z.string().nullable(),
   power: resourceRangeSchema.nullable(),
   coolant: resourceRangeSchema.nullable(),
   generation: z.object({ power: z.number().nullable(), coolant: z.number().nullable() }),
@@ -248,6 +252,15 @@ function rangeOrNull(r) {
 }
 
 // ports-tree traversal order; unknown class_name -> nulls with the port's type.
+// Grade: the cache carries the wiki letter (G1 = A, G3 = C); the ports-tree numeric
+// grade (1–4) is the letter fallback when the cache has none (null-sentinel entries).
+const GRADE_LETTER = { 1: 'A', 2: 'B', 3: 'C', 4: 'D', 5: 'E' };
+function gradeLetter(cacheGrade, portGrade) {
+  if (typeof cacheGrade === 'string' && GRADE_LETTER_INV.has(cacheGrade)) return cacheGrade;
+  return GRADE_LETTER[portGrade] ?? null;
+}
+const GRADE_LETTER_INV = new Set(['A', 'B', 'C', 'D', 'E']);
+
 function componentsOf(ship) {
   const out = [];
   for (const p of collectPorts(ship.ports)) {
@@ -259,7 +272,8 @@ function componentsOf(ship) {
       name: it.name ?? '',
       className: it.class_name,
       size: it.size ?? null,
-      grade: it.grade ?? null,
+      grade: gradeLetter(c?.grade, it.grade),
+      cls: typeof c?.cls === 'string' ? c.cls : null,
       power: rangeOrNull(c?.power),
       coolant: rangeOrNull(c?.coolant),
       generation: { power: num(c?.generation?.power, null), coolant: num(c?.generation?.coolant, null) },
@@ -605,6 +619,14 @@ const compTotal = ships.reduce((t, s) => t + s.components.length, 0);
 const sumMin = ships.map((s) => sumOf(s, 'minOnline'));
 const sumMax = ships.map((s) => sumOf(s, 'fullDraw'));
 console.log(`components=${compTotal} across ${ships.length} ships (${(compTotal / ships.length).toFixed(1)}/ship)`);
+const gradeDist = {};
+const clsDist = {};
+for (const s of ships) for (const c of s.components) {
+  gradeDist[c.grade ?? '?'] = (gradeDist[c.grade ?? '?'] ?? 0) + 1;
+  clsDist[c.cls ?? '?'] = (clsDist[c.cls ?? '?'] ?? 0) + 1;
+}
+console.log(`component grades: ${JSON.stringify(gradeDist)}`);
+console.log(`component classes: ${JSON.stringify(clsDist)}`);
 console.log(`per-ship ΣminOnline: p50=${pctl(sumMin, 50)} p75=${pctl(sumMin, 75)} p90=${pctl(sumMin, 90)} max=${pctl(sumMin, 100)}`);
 console.log(`per-ship ΣfullDraw:  p50=${pctl(sumMax, 50)} p75=${pctl(sumMax, 75)} p90=${pctl(sumMax, 90)} max=${pctl(sumMax, 100)}`);
 const overMin = ships.map((s, i) => ({ s, m: sumMin[i] })).filter((x) => x.m > x.s.powerSegments);

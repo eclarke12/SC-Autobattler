@@ -415,3 +415,30 @@ the ships' fixed guns on those rows by order pairing).
   billing 0 pips — below minOnline is offline per Comm-Link 20263; the all-off case is
   shields-down). Floor is 0 exactly when all generators are off, so shields-off stays
   reachable. Test: `engine.test.ts` "per-Shield floor at the App trust boundary".
+
+## Component grade letters + class (2026-10-24)
+
+Numeric `grade` (ports-tree `1`–`4`, shown as "G3") replaced by the wiki **letter**
+grade + a component **class**, displayed with the SC nomenclature
+**`S1 Civ A`** = size 1 · Civilian · grade A (G1 = A, G3 = C — confirmed on the API:
+Shimmer's ports grade 3 = item `grade: "C"`).
+
+- **Source** — the `/items/{class_name}` payload carries `grade` (letter, A–E) and
+  `class` (`Military`/`Civilian`/`Industrial`/`Stealth`/`Competition`/null).
+  T17 `entryOf` now caches both (`grade`, `cls`); legacy cache entries lack the `cls`
+  key and are re-fetched (`lacksEnrichment`); full enrichment pass re-fetched all
+  1137 entries in 4 passes, 0 fetch failures. The pass also added a wave loop
+  (`CONC = 4`) — the serial 1.6 req/s loop made the re-fetch a 10-minute job.
+- **Join** — `ShipComponent.grade: 'A'|'B'|'C'|'D'|'E'|null` (cache letter;
+  ports-tree numeric fallback 1→A…5→E) + `cls: string|null`. Builder
+  `componentSchema` requires both (`grade` enum — data skew fails loudly); `data.ts`
+  mirrors; `engine/types.ts` documents the display tag.
+- **Fleet distribution (228-ship snapshot)** — grades A 2867 / B 236 / C 1295 / D 95
+  (no E; weapons/guns/turrets carry the API default "A"); classes Civilian 616 /
+  Military 581 / Industrial 358 / null 2685 / Stealth 169 / Competition 84 (null =
+  the API classifies only system-component families; guns/racks/turrets/armor are
+  unclassified).
+- **UI** — LoadoutPanel `compTag` renders `S<n> <Abbr> <grade>` with Mil/Civ/Ind/
+  Sth/Cmp abbreviations (+ full class in the tooltip); **turret-family rows
+  (Turret/TurretBase/UtilityTurret, from `turretMounts.ts`) show size only** —
+  the mount grade/class carries no meaning in the app.

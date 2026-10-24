@@ -14,6 +14,7 @@ const SNAPSHOT = 'probe/out/vehicles-all.json';
 const CACHE = 'data/components-cache.json';
 const SEED = 'probe/out/component-power-cache.json';
 const DELAY_MS = 100;
+const CONC = 4; // concurrent item fetches per wave (~rate-limits to the API's polite band)
 const say = (...a) => console.log(a.map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).join(' '));
 
 function maxSeconds() {
@@ -59,9 +60,13 @@ function migrate(old) {
 const MAX_FETCH_ATTEMPTS = 3;
 const isFailed = (e) => e !== null && typeof e === 'object' && typeof e.error === 'string';
 const priorAttempts = (e) => (isFailed(e) ? e.attempts : e === null ? 1 : 0);
+// Cache entries predating the grade/class join (2026-10-24) lack the `cls` key —
+// treated as needing a re-fetch to enrich them (like legacy nulls).
+const lacksEnrichment = (e) => e !== null && typeof e === 'object' && !isFailed(e) && !('cls' in e);
 function needsWork(e) {
   if (e === undefined) return true;
   if (e === null) return true;
+  if (lacksEnrichment(e)) return true;
   return isFailed(e) && e.attempts < MAX_FETCH_ATTEMPTS;
 }
 
@@ -76,6 +81,8 @@ function entryOf(it) {
   const rn = it.resource_network ?? {};
   return {
     type: it.type ?? null,
+    grade: typeof it.grade === 'string' ? it.grade : null,
+    cls: typeof it.class === 'string' ? it.class : null,
     power: rn.usage?.power ? { minOnline: rn.usage.power.min, fullDraw: rn.usage.power.max } : null,
     coolant: rn.usage?.coolant ? { minOnline: rn.usage.coolant.min, fullDraw: rn.usage.coolant.max } : null,
     generation: {
@@ -103,17 +110,24 @@ const todo = [...uniq.keys()].filter((cn) => needsWork(cache[cn]));
 say(`[T17] cached ${Object.keys(cache).length}; to fetch ${todo.length} (budget ${budgetMs / 1000}s)`);
 
 let fetched = 0, failed = 0;
-for (const cn of todo) {
+// Fetch in waves of CONC (the 2026-10-24 full-cache enrichment pass made the serial
+// ~1.6 req/s loop a 10-minute multi-run job; waves cut it ~4x). Per-key bookkeeping,
+// budget check, and periodic writes are unchanged.
+for (let k = 0; k < todo.length; k += CONC) {
   if (Date.now() - t0 > budgetMs) { say(`[T17] budget exhausted`); break; }
-  const e = await fetchItem(cn);
-  if (e === null) {
-    failed++;
-    cache[cn] = { error: 'fetch_failed', attempts: Math.min(priorAttempts(cache[cn]) + 1, MAX_FETCH_ATTEMPTS) };
-  } else {
-    cache[cn] = e;
+  const batch = todo.slice(k, k + CONC);
+  const results = await Promise.all(batch.map(fetchItem));
+  for (const [j, cn] of batch.entries()) {
+    const e = results[j];
+    if (e === null) {
+      failed++;
+      cache[cn] = { error: 'fetch_failed', attempts: Math.min(priorAttempts(cache[cn]) + 1, MAX_FETCH_ATTEMPTS) };
+    } else {
+      cache[cn] = e;
+    }
+    fetched++;
   }
-  fetched++;
-  if (fetched % 25 === 0) {
+  if (fetched % 25 < CONC) {
     writeFileSync(CACHE, JSON.stringify(cache, null, 1));
     say(`[T17] progress ${fetched}/${todo.length} (failed ${failed})`);
   }
