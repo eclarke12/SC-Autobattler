@@ -69,11 +69,18 @@ export function shieldSplitFor(defender: ShipData, mix: Record<DamageType, numbe
   let f = 0;
   for (const t of DAMAGE_TYPES) {
     if (mix[t] === 0) continue;
-    const a = defender.shield.absorption[t];
-    const typeFactor = Math.min(1, Math.max(0, (a.min + a.max) / 2));
-    f += mix[t] * typeFactor;
+    f += mix[t] * absorptionFactorFor(defender, t);
   }
   return { shield: f, structure: 1 - f };
+}
+
+/** Per-damage-type shield absorption factor: mid of the API absorption band, clamped to
+ *  [0, 1] (energy {1,1} ⇒ fully absorbed by shields; physical {0,0.45} ⇒ 0.225, so 77.5 %
+ *  of ballistic damage bleeds past the shield onto structure). Shared by the aggregate
+ *  mix split (missiles) and the per-weapon gate split (guns). */
+export function absorptionFactorFor(defender: ShipData, type: DamageType): number {
+  const a = defender.shield.absorption[type];
+  return Math.min(1, Math.max(0, (a.min + a.max) / 2));
 }
 
 export function deflectionFor(defender: ShipData, type: DamageType): number {
@@ -143,9 +150,19 @@ export function gunAmmoInfo(w: Weapon, roundSeconds: number): { perRound: number
 }
 
 export interface GatedAttack {
-  /** Effective DPS against this defender after the armor deflection gate. */
+  /** Effective incoming DPS against this defender: shield-absorbed share + the structure
+   *  share that passes the armor gate (deflected weapons contribute their shield share). */
   dps: number;
-  /** Damage-type mix of the surviving (non-deflected) output. */
+  /** Absolute DPS per damage type the defender's shields absorb from weapons that PASSED
+   *  the gate — routes onto structure once the shields are down. */
+  shield: Record<DamageType, number>;
+  /** Absolute DPS per damage type the shields absorb from gate-DEFLECTED weapons — the
+   *  gate never touches shields; this share grinds the pool and evaporates on intact
+   *  armor once the shields are down. */
+  shieldGated: Record<DamageType, number>;
+  /** Absolute DPS per damage type that gets past the shields, after the deflection gate. */
+  structure: Record<DamageType, number>;
+  /** Damage-type mix of the surviving (non-deflected) structure output, normalized. */
   mix: Record<DamageType, number>;
   /** Weapons firing at all (effective dps > 0), deflected ones included. */
   fired: number;
@@ -157,10 +174,13 @@ export interface GatedAttack {
   deflected: { name: string; count: number }[];
 }
 
-/** Hard gate: while the defender has armor, weapons whose per-shot damage (alpha) is at or
- *  below the defender's effective gate (deflection × armor integrity) for that damage type
- *  deal no damage at all. As the armor pool depletes the gate shrinks and marginal weapons
- *  resume fire; at 0 armor the gate lifts. Alpha 0 (unknown) is never deflected.
+/** The armor deflection gate applies AFTER shields: while the defender has armor, weapons
+ *  whose per-shot damage (alpha) is at or below the defender's effective gate (deflection ×
+ *  armor integrity) for that damage type stop damaging armor. Shields are not gated — the
+ *  defender's shield pool keeps absorbing the absorption-factor share of a deflected
+ *  weapon's output (100 % of an energy repeater's shots, mid(absorption) of ballistics).
+ *  As the armor pool depletes the gate shrinks and marginal weapons resume structure fire;
+ *  at 0 armor the gate lifts. Alpha 0 (unknown) is never deflected.
  *  `ammoLeft` (W4, indexed by weapon): entries ≤ 0 are dry — zero contribution, excluded
  *  from `fired` and the mix (they consume no ammo — there is none left). Omitted (UI) =
  *  full loadout. */
@@ -168,11 +188,16 @@ export function gatedLoadout(config: ShipConfig, defender: ShipData, defenderArm
   const { ship, mannedTurrets } = config;
   const armorRatio = armorRatioOf(defender.armor, defenderArmor);
   const turretShare = ship.turretCount > 0 ? Math.min(mannedTurrets, ship.turretCount) / ship.turretCount : 0;
-  const mix: Record<DamageType, number> = {
+  const shield: Record<DamageType, number> = {
+    physical: 0, energy: 0, distortion: 0, thermal: 0, biochemical: 0, stun: 0,
+  };
+  const shieldGated: Record<DamageType, number> = {
+    physical: 0, energy: 0, distortion: 0, thermal: 0, biochemical: 0, stun: 0,
+  };
+  const structure: Record<DamageType, number> = {
     physical: 0, energy: 0, distortion: 0, thermal: 0, biochemical: 0, stun: 0,
   };
   const deflectedNames = new Map<string, number>();
-  let total = 0;
   let fired = 0;
   const firedIndices: number[] = [];
   ship.weapons.forEach((w, i) => {
@@ -181,18 +206,37 @@ export function gatedLoadout(config: ShipConfig, defender: ShipData, defenderArm
     if (dps <= 0) return;
     fired += 1;
     firedIndices.push(i);
+    const f = absorptionFactorFor(defender, w.damageType);
     if (isDeflectedByGate(w.alpha, deflectionFor(defender, w.damageType), armorRatio)) {
+      shieldGated[w.damageType] += dps * f;
       deflectedNames.set(w.name, (deflectedNames.get(w.name) ?? 0) + 1);
       return;
     }
-    mix[w.damageType] += dps;
-    total += dps;
+    shield[w.damageType] += dps * f;
+    structure[w.damageType] += dps * (1 - f);
   });
-  if (total > 0) {
-    for (const t of DAMAGE_TYPES) mix[t] /= total;
+  const structTotal = DAMAGE_TYPES.reduce((s, t) => s + structure[t], 0);
+  const mix: Record<DamageType, number> = {
+    physical: 0, energy: 0, distortion: 0, thermal: 0, biochemical: 0, stun: 0,
+  };
+  if (structTotal > 0) {
+    for (const t of DAMAGE_TYPES) mix[t] = structure[t] / structTotal;
   }
   const deflected = [...deflectedNames.entries()].map(([name, count]) => ({ name, count }));
-  return { dps: total, mix, fired, firedIndices, deflected };
+  const dps = DAMAGE_TYPES.reduce((s, t) => s + shield[t] + shieldGated[t] + structure[t], 0);
+  return { dps, shield, shieldGated, structure, mix, fired, firedIndices, deflected };
+}
+
+/** Totals of a gated attack's shield-absorbed and structure-phasing DPS (shieldGated — the
+ *  deflected weapons' shield-only share — is counted in the shield total). */
+export function attackSplitFor(attack: GatedAttack): { shield: number; structure: number } {
+  let shield = 0;
+  let structure = 0;
+  for (const t of DAMAGE_TYPES) {
+    shield += attack.shield[t] + attack.shieldGated[t];
+    structure += attack.structure[t];
+  }
+  return { shield, structure };
 }
 
 export interface PowerNote {

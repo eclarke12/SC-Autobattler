@@ -589,6 +589,40 @@ describe('armor deflection gate', () => {
     expect(result.rounds.every((rd) => rd.b.events.some((e) => e.includes('Armor deflects')))).toBe(true);
   });
 
+  it('gate-deflected energy repeaters keep grinding the shield pool — shields are never gated (Centaurus vs 600i class)', () => {
+    const repeater = { name: 'Energy repeater', type: 'fixed' as const, damageType: 'energy' as const, dps: 1200, alpha: 100, power: 1, ammo: null };
+    const attacker: ShipData = { ...syn('RepeaterBoat', { health: 50000, armor: 0, shield: 0, regen: 0, fixedDps: 0 }), weapons: [repeater] };
+    const defender = syn('ArmoredYacht', { health: 90000, armor: 5000, shield: 20000, regen: 0, fixedDps: 0, deflectEnergy: 500 });
+    const result = simulate(fullConfig(attacker), fullConfig(defender), 11);
+    const r1 = result.rounds[0];
+    // Energy absorption {1,1}: every shot is deflected by the 500E gate against armor, yet
+    // the FULL 12000·va keeps grinding shields (gate applies after shields, structure-only).
+    expect(r1.b.shieldBefore - r1.b.shieldAfter).toBeGreaterThan(10000);
+    expect(r1.b.armorAfter).toBe(5000);
+    expect(r1.b.hullAfter).toBe(90000);
+    expect(r1.b.events.some((e) => e.includes('Armor deflects'))).toBe(true);
+    expect(result.summary.sides.a.totalDamageDealt).toBeGreaterThan(0);
+    // Once the shields fall, the deflected share evaporates on the intact gate: no armor loss.
+    const broken = result.rounds.find((rd) => rd.b.events.some((e) => e.includes('Shields broken')))!;
+    const after = result.rounds[result.rounds.length - 1];
+    expect(after.b.armorBefore).toBe(broken.b.armorAfter);
+    expect(after.b.armorAfter).toBe(5000);
+  });
+
+  it('gate-deflected ballistics bleed only the shield-absorption share; armor takes nothing while the gate stands', () => {
+    const attacker = syn('Autocannon', { health: 50000, armor: 0, shield: 0, regen: 0, fixedDps: 4000, alpha: 100 });
+    const defender = syn('Fortress', { health: 90000, armor: 1000, shield: 20000, regen: 0, fixedDps: 0, deflectPhys: 500, physAbsorb: 0.25 });
+    const result = simulate(fullConfig(attacker), fullConfig(defender), 5);
+    const r1 = result.rounds[0];
+    // 40000·va incoming: the 0.25 mid-absorption hits shields, the 77.5 % phase-through
+    // share is gate-blocked — armor untouched, hull untouched.
+    const shieldLoss = r1.b.shieldBefore - r1.b.shieldAfter;
+    expect(shieldLoss).toBeGreaterThan(8000);
+    expect(shieldLoss).toBeLessThan(12000);
+    expect(r1.b.armorAfter).toBe(1000);
+    expect(r1.b.hullAfter).toBe(90000);
+  });
+
   it('weapons above the gate strip armor and overflow carries to hull', () => {
     const attacker = syn('Strong', { health: 50000, armor: 0, shield: 0, regen: 0, fixedDps: 500, alpha: 600 });
     const defender = syn('Armored', { health: 13000, armor: 1000, shield: 0, regen: 0, fixedDps: 0, deflectPhys: 500 });

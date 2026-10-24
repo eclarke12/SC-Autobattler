@@ -26,7 +26,7 @@ export function ShipCard({ ship, selected, scope, onSelect }: {
         <div className="ship-meta">{ship.manufacturer} · {ship.sizeClass}{ship.career ? ` · ${ship.career}` : ''}</div>
         <div className="ship-stats">
           <span title="Shield pool">🛡 {fmtInt(ship.shield.hp)}</span>
-          <span title={`Armor pool · deflect gate ${fmtInt(ship.armorDeflection.physical)} ballistic / ${fmtInt(ship.armorDeflection.energy)} energy at full armor — attacks at or below the gate deal no damage while armor holds; the gate shrinks as the armor pool depletes`}>🔩 {fmtInt(ship.armor)} ({fmtInt(ship.armorDeflection.physical)}/{fmtInt(ship.armorDeflection.energy)})</span>
+          <span title={`Armor pool · deflect gate ${fmtInt(ship.armorDeflection.physical)} ballistic / ${fmtInt(ship.armorDeflection.energy)} energy at full armor — weapons at or below the gate cannot damage armor while it holds (their shots are still absorbed by the ship's shields); the gate shrinks as the armor pool depletes`}>🔩 {fmtInt(ship.armor)} ({fmtInt(ship.armorDeflection.physical)}/{fmtInt(ship.armorDeflection.energy)})</span>
           <span title="Hull HP">❤ {fmtInt(ship.health)}</span>
           <span title="Fixed weapon DPS">⚔ {fmtInt(shipTotalDps(ship))}</span>
           {ship.turretCount > 0 && <span title={`Manned turret DPS per turret${crewTurretCap(ship) < ship.turretCount ? ` — game-legal max: ${crewTurretCap(ship)} (crew ${ship.crew.max}): each manned turret needs a gunner beyond the pilot seat` : ''}`}>🎯 {fmtInt(turretAvg)}×{ship.turretCount}{crewTurretCap(ship) < ship.turretCount ? `†${crewTurretCap(ship)}` : ''}</span>}

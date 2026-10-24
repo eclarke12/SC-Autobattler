@@ -8,6 +8,7 @@ import {
   TURRET_POWER_PIPS,
   WEAPONS_POOL_COMPONENT_TYPES,
   allocatedPower,
+  attackSplitFor,
   crewTurretCap,
   decoyStockFor,
   defaultAllocOf,
@@ -101,7 +102,8 @@ export function LoadoutPanel({ config, opponent, onChange, onPdcToggle }: {
   const derived = derivedStats(config);
   const notes = powerNotes(config);
   const gated = opponent ? gatedLoadout(config, opponent, opponent.armor, derived.dpsScale) : null;
-  const split = gated && opponent ? shieldSplitFor(opponent, gated.mix) : null;
+  const split = gated ? attackSplitFor(gated) : null;
+  const splitTotal = split ? split.shield + split.structure : 0;
   const firing = gated ? gated.fired : 0;
   const deflectedCount = gated ? gated.deflected.reduce((s, d) => s + d.count, 0) : 0;
   const quantum = ship.missiles.damageType === 'distortion';
@@ -176,18 +178,18 @@ export function LoadoutPanel({ config, opponent, onChange, onPdcToggle }: {
           <span>Shield regen</span><b>{fmtInt(derived.shieldRegen)}/s</b>
         </div>
         <div><span>Shield face</span><b>{ship.shield.faceType}</b></div>
-        {split !== null && (
-          <div title="Share of your effective DPS the foe's shields absorb; the rest phases through straight onto their armor (hull once armor is gone)">
-            <span>Shield cover vs foe</span><b>{Math.round(split.shield * 100)}%</b>
+        {split !== null && splitTotal > 0 && (
+          <div title="Share of your incoming DPS the foe's shields absorb (the armor gate never touches shields — a deflected gun keeps grinding the shield pool); the rest phases through straight onto their armor (hull once armor is gone)">
+            <span>Shield cover vs foe</span><b>{Math.round((split.shield / splitTotal) * 100)}%</b>
           </div>
         )}
-        {split !== null && split.structure > 0 && (
-          <div title="Share of your effective DPS that bypasses the foe's shields (low shield absorption for your damage types, e.g. ballistic) and hits armor/hull directly">
-            <span>Leak past shields</span><b>{Math.round(split.structure * 100)}%</b>
+        {split !== null && splitTotal > 0 && split.structure > 0 && (
+          <div title="Share of your incoming DPS that bypasses the foe's shields (low shield absorption for your damage types, e.g. ballistic) and hits armor/hull directly — only for weapons above the foe's armor gate; gated weapons contribute nothing past the shield">
+            <span>Leak past shields</span><b>{Math.round((split.structure / splitTotal) * 100)}%</b>
           </div>
         )}
         {gated && opponent && (
-          <div title={`Enemy armor deflect gate ${fmtInt(opponent.armorDeflection.physical)} ballistic / ${fmtInt(opponent.armorDeflection.energy)} energy at full armor: weapons whose per-shot damage is at or below the gate deal no damage while the enemy has armor — the gate shrinks as their armor pool depletes, and marginal weapons resume fire`}>
+          <div title={`Enemy armor deflect gate ${fmtInt(opponent.armorDeflection.physical)} ballistic / ${fmtInt(opponent.armorDeflection.energy)} energy at full armor: weapons whose per-shot damage is at or below the gate cannot damage armor while the enemy has armor (their shots are still absorbed by the enemy's shields) — the gate shrinks as their armor pool depletes, and marginal weapons resume armor fire`}>
             <span>Through foe's armor gate</span><b>{firing - deflectedCount}/{firing}</b>
           </div>
         )}
@@ -416,7 +418,7 @@ export function LoadoutPanel({ config, opponent, onChange, onPdcToggle }: {
       {gated && opponent && deflectedCount > 0 && (
         <ul className="power-notes">
           <li>
-            {deflectedCount}/{firing} weapon(s) deflected by {opponent.name}'s armor gate ({fmtInt(opponent.armorDeflection.physical)}P/{fmtInt(opponent.armorDeflection.energy)}E): {gated.deflected.map((d) => (d.count > 1 ? `${d.name}×${d.count}` : d.name)).join(', ')} — zero damage while their armor holds.
+            {deflectedCount}/{firing} weapon(s) deflected by {opponent.name}'s armor gate ({fmtInt(opponent.armorDeflection.physical)}P/{fmtInt(opponent.armorDeflection.energy)}E): {gated.deflected.map((d) => (d.count > 1 ? `${d.name}×${d.count}` : d.name)).join(', ')} — no armor damage while their armor holds, but their shields still eat the full hit.
           </li>
         </ul>
       )}

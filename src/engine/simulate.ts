@@ -100,16 +100,20 @@ function currentPhase(s: CombatState): Phase {
   return 'hull';
 }
 
-/** Apply one round of incoming damage (post deflection-gate, post-variance) split into the
- *  shield-absorbed part and the per-damage-type parts phasing through shields onto
- *  armor/hull. Armor HP is consumed at dmg × armorMultipliers[type]; the structural hull
- *  takes raw damage (A4, 2026-10-22). Armor depletion overflow carries to hull, split by
- *  the attacker's damage mix. Mutates state. */
-function applyHit(def: CombatState, shieldPart: number, structByType: Record<DamageType, number>, mix: Record<DamageType, number>, roundIndex: number, events: string[]): number {
+/** Apply one round of incoming damage (post-variance) split into the shield-absorbed part,
+ *  the per-damage-type parts phasing through shields onto armor/hull, and the shield-only
+ *  part from armor-gate-deflected weapons (A5, 2026-10-24): deflection gates STRUCTURE
+ *  only, never shields — a deflected weapon's shield-absorbed share keeps grinding the
+ *  shield pool, and evaporates against intact armor once shields are down. Armor HP is
+ *  consumed at dmg × armorMultipliers[type]; the structural hull takes raw damage
+ *  (A4, 2026-10-22). Armor depletion overflow carries to hull, split by the attacker's
+ *  damage mix. Mutates state. */
+function applyHit(def: CombatState, shieldByType: Record<DamageType, number>, structByType: Record<DamageType, number>, gatedShieldByType: Record<DamageType, number>, mix: Record<DamageType, number>, roundIndex: number, events: string[]): number {
+  const absorbed = sumTypes(shieldByType) + sumTypes(gatedShieldByType);
   let applied = 0;
   if (def.shieldActive && def.shield > 0) {
-    def.shield -= shieldPart;
-    applied += shieldPart;
+    def.shield -= absorbed;
+    applied += absorbed;
     applied += applyToStructure(def, structByType, events);
     if (def.shield <= 0) {
       const overflow = -def.shield;
@@ -117,11 +121,16 @@ function applyHit(def: CombatState, shieldPart: number, structByType: Record<Dam
       def.shieldActive = false;
       def.downRoundsLeft = Math.max(1, Math.ceil(def.ship.shield.reconfigurationCooldown / ROUND_SECONDS));
       if (def.shieldBrokenAtRound === null) def.shieldBrokenAtRound = roundIndex;
-      events.push(`Shields broken at round ${roundIndex} (shield cover ${(shieldPart / Math.max(1e-9, shieldPart + sumTypes(structByType)) * 100).toFixed(0)}%), overflow ${fmt(overflow)} to armor; down for ${def.downRoundsLeft} round(s)`);
+      events.push(`Shields broken at round ${roundIndex} (shield cover ${(absorbed / Math.max(1e-9, absorbed + sumTypes(structByType)) * 100).toFixed(0)}%), overflow ${fmt(overflow)} to armor; down for ${def.downRoundsLeft} round(s)`);
       applied += applyToStructure(def, scaleMix(mix, overflow), events);
     }
   } else {
-    applied += applyToStructure(def, scaleMix(mix, shieldPart + sumTypes(structByType)), events);
+    // Shields down: the phasing parts and the shield share of weapons that PASSED the gate
+    // hit structure (the gate's structure block already zeroed their phase-through share);
+    // a deflected weapon's shield-only share evaporates — the gate is applied after shields.
+    const structure = {} as Record<DamageType, number>;
+    for (const t of DAMAGE_TYPES) structure[t] = shieldByType[t] + structByType[t];
+    applied += applyToStructure(def, structure, events);
   }
   return applied;
 }
@@ -160,6 +169,13 @@ function scaleMix(mix: Record<DamageType, number>, v: number): Record<DamageType
   return out;
 }
 
+/** Scale an absolute per-damage-type record by a scalar (per-round seconds × variance). */
+function scaleTypes(byType: Record<DamageType, number>, v: number): Record<DamageType, number> {
+  const out = {} as Record<DamageType, number>;
+  for (const t of DAMAGE_TYPES) out[t] = byType[t] * v;
+  return out;
+}
+
 function fmt(n: number): string {
   return Math.round(n).toLocaleString('en-US');
 }
@@ -183,6 +199,10 @@ const DISTORTION_MIX: Record<DamageType, number> = {
 export function ordnanceKindLabel(m: ShipData['missiles']): 'Quantum torpedo' | 'Torpedo' | 'Missile' {
   return m.damageType === 'distortion' ? 'Quantum torpedo' : m.torpedo ? 'Torpedo' : 'Missile';
 }
+
+const ZERO_TYPES: Record<DamageType, number> = {
+  physical: 0, energy: 0, distortion: 0, thermal: 0, biochemical: 0, stun: 0,
+};
 
 /** One missile salvo per firing side per cadence, resolved with the defender's decoys.
  *  Per-missile decoy semantics (C3/C4, 2026-10-22): against each incoming missile the
@@ -232,7 +252,7 @@ function missilePhase(att: CombatState, def: CombatState, variance: number, roun
   const dmg = m.perShot * variance;
   const mix = quantum ? DISTORTION_MIX : PHYSICAL_MIX;
   const split = shieldSplitFor(def.ship, mix);
-  const applied = applyHit(def, dmg * split.shield, scaleMix(mix, dmg * split.structure), mix, round, defEvents);
+  const applied = applyHit(def, scaleMix(mix, dmg * split.shield), scaleMix(mix, dmg * split.structure), ZERO_TYPES, mix, round, defEvents);
   att.totalDamageDealt += applied;
   att.damageByType[quantum ? 'distortion' : 'physical'] += applied;
   defEvents.push(split.structure > 0
@@ -254,15 +274,13 @@ export function simulate(a: ShipConfig, b: ShipConfig, seed: number): BattleResu
     const va = 1 + (rand() * 2 - 1) * VARIANCE;
     const vb = 1 + (rand() * 2 - 1) * VARIANCE;
 
-    // Deflection gate (hard, integrity-scaled): weapons with per-shot damage at or below
-    // the defender's effective gate (deflection × armor/armorMax) for their damage type
-    // deal no damage while the defender has armor; the gate lifts as the armor pool depletes.
+    // Deflection gate (hard, integrity-scaled, STRUCTURE-ONLY): weapons with per-shot
+    // damage at or below the defender's effective gate (deflection × armor/armorMax) for
+    // their damage type stop damaging armor while the defender has armor; the gate lifts
+    // as the armor pool depletes. Shields are never gated — the defender's shield pool
+    // keeps absorbing the absorption-factor share of deflected weapons' output.
     const atkA = gatedLoadout(a, stateB.ship, stateB.armor, statsA.dpsScale, stateA.ammoLeft);
     const atkB = gatedLoadout(b, stateA.ship, stateA.armor, statsB.dpsScale, stateB.ammoLeft);
-    const splitAB = shieldSplitFor(b.ship, atkA.mix); // A attacks B
-    const splitBA = shieldSplitFor(a.ship, atkB.mix); // B attacks A
-    const incomingA = atkA.dps * va * ROUND_SECONDS;
-    const incomingB = atkB.dps * vb * ROUND_SECONDS;
 
     const snapshotA = {
       shieldBefore: stateA.shield,
@@ -285,7 +303,7 @@ export function simulate(a: ShipConfig, b: ShipConfig, seed: number): BattleResu
     const deflectNote = (atk: GatedAttack, gateHost: ShipData, armorRatio: number): string | null => {
       if (atk.deflected.length === 0) return null;
       const list = atk.deflected.map((d) => (d.count > 1 ? `${d.name}×${d.count}` : d.name)).join(', ');
-      return `Armor deflects ${list} (effective gate ${fmt(effectiveGate(deflectionFor(gateHost, 'physical'), armorRatio))}P / ${fmt(effectiveGate(deflectionFor(gateHost, 'energy'), armorRatio))}E at ${Math.round(armorRatio * 100)}% armor)`;
+      return `Armor deflects ${list} (effective gate ${fmt(effectiveGate(deflectionFor(gateHost, 'physical'), armorRatio))}P / ${fmt(effectiveGate(deflectionFor(gateHost, 'energy'), armorRatio))}E at ${Math.round(armorRatio * 100)}% armor) — structure blocked; their shields still eat the full hit`;
     };
     const ratioB = armorRatioOf(b.ship.armor, stateB.armor);
     const ratioA = armorRatioOf(a.ship.armor, stateA.armor);
@@ -309,17 +327,21 @@ export function simulate(a: ShipConfig, b: ShipConfig, seed: number): BattleResu
     depleteGuns(stateA, round, eventsA, atkA.firedIndices);
     depleteGuns(stateB, round, eventsB, atkB.firedIndices);
 
-    const dealtByA = incomingA;
-    const dealtByB = incomingB;
-    stateA.totalDamageDealt += dealtByA;
-    stateB.totalDamageDealt += dealtByB;
+    // Damage accounting: `damageByType` tracks the raw projected damage per type (shield
+    // absorption + structure phase + the deflected weapons' shield-only share), while
+    // `totalDamageDealt` / `dpsApplied` track damage that ACTUALLY lands — a fully
+    // deflected gun against armor with no shields left applies nothing.
+    const secA = va * ROUND_SECONDS;
+    const secB = vb * ROUND_SECONDS;
     for (const t of DAMAGE_TYPES) {
-      stateA.damageByType[t] += dealtByA * atkA.mix[t];
-      stateB.damageByType[t] += dealtByB * atkB.mix[t];
+      stateA.damageByType[t] += (atkA.shield[t] + atkA.shieldGated[t] + atkA.structure[t]) * secA;
+      stateB.damageByType[t] += (atkB.shield[t] + atkB.shieldGated[t] + atkB.structure[t]) * secB;
     }
 
-    applyHit(stateB, dealtByA * splitAB.shield, scaleMix(atkA.mix, dealtByA * splitAB.structure), atkA.mix, round, eventsB);
-    applyHit(stateA, dealtByB * splitBA.shield, scaleMix(atkB.mix, dealtByB * splitBA.structure), atkB.mix, round, eventsA);
+    const dealtByA = applyHit(stateB, scaleTypes(atkA.shield, secA), scaleTypes(atkA.structure, secA), scaleTypes(atkA.shieldGated, secA), atkA.mix, round, eventsB);
+    const dealtByB = applyHit(stateA, scaleTypes(atkB.shield, secB), scaleTypes(atkB.structure, secB), scaleTypes(atkB.shieldGated, secB), atkB.mix, round, eventsA);
+    stateA.totalDamageDealt += dealtByA;
+    stateB.totalDamageDealt += dealtByB;
 
     // End-of-round shield bookkeeping.
     if (!stateA.shieldActive) {
